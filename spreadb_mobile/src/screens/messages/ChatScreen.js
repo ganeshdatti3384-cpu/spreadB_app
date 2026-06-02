@@ -2,8 +2,9 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
-  Image, Modal, ScrollView, Dimensions,
+  Image, Modal, ScrollView, Dimensions, StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
@@ -533,10 +534,12 @@ export default function ChatScreen({ route, navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" translucent={false} />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
       {/* ── HEADER (SELECTION OR NORMAL) ── */}
       <LinearGradient
         colors={['#0A2010', '#0D3015', '#0A1628']}
@@ -954,7 +957,8 @@ export default function ChatScreen({ route, navigation }) {
           )}
         </View>
       </Modal>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -963,7 +967,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   // Header
-  headerContainer: { paddingTop: Platform.OS === 'ios' ? 48 : 36, paddingBottom: 10 },
+  headerContainer: { paddingTop: 10, paddingBottom: 10 },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, height: 50,
@@ -1123,7 +1127,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'flex-end', gap: 8,
     paddingHorizontal: 12, paddingVertical: 8,
     backgroundColor: COLORS.white, borderTopWidth: 1, borderTopColor: COLORS.borderLight,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 10,
+    paddingBottom: 10,
   },
   attachBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
   textInput: {

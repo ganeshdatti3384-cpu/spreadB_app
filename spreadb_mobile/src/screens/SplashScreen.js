@@ -1,29 +1,59 @@
 import React, { useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, Animated, Dimensions, Easing,
+  View, Text, StyleSheet, Animated, Dimensions, Easing, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 
 const { width, height } = Dimensions.get('window');
 
-// Floating particle component
-const Particle = ({ delay, x, size, color, duration }) => {
-  const anim = useRef(new Animated.Value(0)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
+// Floating Particle Component
+const FloatingSparkle = ({ delay, x, size, color, duration }) => {
+  const translateY = useRef(new Animated.Value(height + 50)).current;
+  const translateX = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(0.5)).current;
 
   useEffect(() => {
+    // Horizontal sway animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(translateX, {
+          toValue: 25,
+          duration: duration / 2,
+          easing: Easing.bezier(0.445, 0.05, 0.55, 0.95),
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateX, {
+          toValue: -25,
+          duration: duration / 2,
+          easing: Easing.bezier(0.445, 0.05, 0.55, 0.95),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Vertical float and fade sequence
     Animated.sequence([
       Animated.delay(delay),
       Animated.parallel([
-        Animated.timing(anim, {
-          toValue: 1, duration, easing: Easing.linear, useNativeDriver: true,
+        Animated.timing(translateY, {
+          toValue: -50,
+          duration,
+          easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
+          useNativeDriver: true,
         }),
         Animated.sequence([
-          Animated.timing(opacityAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
-          Animated.delay(duration - 600),
-          Animated.timing(opacityAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0.6, duration: duration * 0.15, useNativeDriver: true }),
+          Animated.delay(duration * 0.7),
+          Animated.timing(opacity, { toValue: 0, duration: duration * 0.15, useNativeDriver: true }),
         ]),
+        Animated.timing(scale, {
+          toValue: 1.2,
+          duration,
+          useNativeDriver: true,
+        }),
       ]),
     ]).start();
   }, []);
@@ -33,46 +63,46 @@ const Particle = ({ delay, x, size, color, duration }) => {
       style={{
         position: 'absolute',
         left: x,
-        width: size, height: size, borderRadius: size / 2,
+        width: size,
+        height: size,
+        borderRadius: size / 2,
         backgroundColor: color,
-        opacity: opacityAnim,
-        transform: [{
-          translateY: anim.interpolate({
-            inputRange: [0, 1],
-            outputRange: [height + 20, -20],
-          }),
-        }, {
-          scale: anim.interpolate({
-            inputRange: [0, 0.5, 1],
-            outputRange: [0.5, 1.2, 0.3],
-          }),
-        }],
+        opacity,
+        transform: [{ translateY }, { translateX }, { scale }],
+        shadowColor: color,
+        shadowOpacity: 0.8,
+        shadowRadius: size,
+        elevation: 2,
       }}
     />
   );
 };
 
-// Ring pulse component
-const PulseRing = ({ delay, size, color }) => {
-  const scaleAnim = useRef(new Animated.Value(0.3)).current;
-  const opacityAnim = useRef(new Animated.Value(0.8)).current;
+// Ethereal Pulsing Ripples (Representing "Spread")
+const RippleRing = ({ delay, size }) => {
+  const scale = useRef(new Animated.Value(0.3)).current;
+  const opacity = useRef(new Animated.Value(0.6)).current;
 
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
         Animated.delay(delay),
         Animated.parallel([
-          Animated.timing(scaleAnim, {
-            toValue: 1, duration: 1500,
-            easing: Easing.out(Easing.ease), useNativeDriver: true,
+          Animated.timing(scale, {
+            toValue: 1.8,
+            duration: 2500,
+            easing: Easing.bezier(0.215, 0.61, 0.355, 1),
+            useNativeDriver: true,
           }),
-          Animated.timing(opacityAnim, {
-            toValue: 0, duration: 1500, useNativeDriver: true,
+          Animated.timing(opacity, {
+            toValue: 0,
+            duration: 2500,
+            useNativeDriver: true,
           }),
         ]),
         Animated.parallel([
-          Animated.timing(scaleAnim, { toValue: 0.3, duration: 0, useNativeDriver: true }),
-          Animated.timing(opacityAnim, { toValue: 0.8, duration: 0, useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 0.3, duration: 0, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0.6, duration: 0, useNativeDriver: true }),
         ]),
       ])
     ).start();
@@ -80,91 +110,131 @@ const PulseRing = ({ delay, size, color }) => {
 
   return (
     <Animated.View
-      style={{
-        position: 'absolute',
-        width: size, height: size, borderRadius: size / 2,
-        borderWidth: 2, borderColor: color,
-        opacity: opacityAnim,
-        transform: [{ scale: scaleAnim }],
-      }}
+      style={[
+        styles.rippleRing,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          opacity,
+          transform: [{ scale }],
+        },
+      ]}
     />
   );
 };
 
 const LETTERS = ['S', 'p', 'r', 'e', 'a', 'd', 'B'];
 
-const particles = [
-  { x: 30, size: 6, color: 'rgba(20,168,0,0.6)', delay: 200, duration: 2500 },
-  { x: 80, size: 4, color: 'rgba(20,168,0,0.4)', delay: 400, duration: 2000 },
-  { x: 150, size: 8, color: 'rgba(20,168,0,0.5)', delay: 100, duration: 2800 },
-  { x: 220, size: 5, color: 'rgba(255,255,255,0.3)', delay: 600, duration: 2200 },
-  { x: 280, size: 7, color: 'rgba(20,168,0,0.4)', delay: 300, duration: 2600 },
-  { x: 320, size: 4, color: 'rgba(255,255,255,0.2)', delay: 500, duration: 1900 },
-  { x: 60, size: 5, color: 'rgba(20,168,0,0.3)', delay: 700, duration: 2400 },
-  { x: 180, size: 6, color: 'rgba(255,255,255,0.25)', delay: 250, duration: 2700 },
-  { x: 340, size: 4, color: 'rgba(20,168,0,0.5)', delay: 450, duration: 2100 },
+const sparkles = [
+  { x: width * 0.15, size: 6, color: '#10B981', delay: 100, duration: 3200 },
+  { x: width * 0.3, size: 4, color: '#8B5CF6', delay: 400, duration: 2800 },
+  { x: width * 0.45, size: 8, color: '#10B981', delay: 200, duration: 3600 },
+  { x: width * 0.6, size: 5, color: '#FFFFFF', delay: 600, duration: 3000 },
+  { x: width * 0.75, size: 7, color: '#3B82F6', delay: 300, duration: 3400 },
+  { x: width * 0.85, size: 4, color: '#10B981', delay: 500, duration: 2600 },
+  { x: width * 0.25, size: 5, color: '#FFFFFF', delay: 800, duration: 3300 },
+  { x: width * 0.65, size: 6, color: '#8B5CF6', delay: 150, duration: 3500 },
 ];
 
 export default function SplashScreen({ onFinish }) {
+  // Exit/intro animations
+  const exitOpacity = useRef(new Animated.Value(1)).current;
+  const exitScale = useRef(new Animated.Value(1)).current;
+  
+  // Aurora orbs loops
+  const orb1Tx = useRef(new Animated.Value(0)).current;
+  const orb1Ty = useRef(new Animated.Value(0)).current;
+  const orb2Tx = useRef(new Animated.Value(0)).current;
+  const orb2Ty = useRef(new Animated.Value(0)).current;
+  const orb3Tx = useRef(new Animated.Value(0)).current;
+  const orb3Ty = useRef(new Animated.Value(0)).current;
+
+  // Logo items animations
+  const logoScale = useRef(new Animated.Value(0)).current;
+  const logoRotate = useRef(new Animated.Value(0)).current;
+  const logoBreath = useRef(new Animated.Value(1)).current;
+  
+  // Stagger letters
   const letterAnims = useRef(LETTERS.map(() => ({
     opacity: new Animated.Value(0),
-    translateY: new Animated.Value(30),
-    scale: new Animated.Value(0.5),
+    translateY: new Animated.Value(40),
+    rotate: new Animated.Value(0),
   }))).current;
 
-  const logoContainerAnim = useRef(new Animated.Value(0)).current;
-  const taglineAnim = useRef(new Animated.Value(0)).current;
-  const taglineSlide = useRef(new Animated.Value(20)).current;
-  const lineWidthAnim = useRef(new Animated.Value(0)).current;
-  const exitAnim = useRef(new Animated.Value(1)).current;
-  const bgAnim = useRef(new Animated.Value(0)).current;
+  // Tagline and loader anims
+  const taglineOpacity = useRef(new Animated.Value(0)).current;
+  const taglineSlide = useRef(new Animated.Value(15)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const loaderOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Background color shift
-    Animated.timing(bgAnim, {
-      toValue: 1, duration: 800, useNativeDriver: false,
-    }).start();
+    // 1. Trigger Aurora loop animations
+    const triggerOrbLoop = (tx, ty, txVal, tyVal, duration) => {
+      Animated.loop(
+        Animated.parallel([
+          Animated.sequence([
+            Animated.timing(tx, { toValue: txVal, duration, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+            Animated.timing(tx, { toValue: -txVal, duration, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+            Animated.timing(tx, { toValue: 0, duration, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          ]),
+          Animated.sequence([
+            Animated.timing(ty, { toValue: tyVal, duration: duration * 1.2, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+            Animated.timing(ty, { toValue: -tyVal, duration: duration * 1.2, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+            Animated.timing(ty, { toValue: 0, duration: duration * 1.2, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          ]),
+        ])
+      ).start();
+    };
 
-    // Stagger letters with spring
+    triggerOrbLoop(orb1Tx, orb1Ty, 60, 100, 8000);
+    triggerOrbLoop(orb2Tx, orb2Ty, -80, -70, 10000);
+    triggerOrbLoop(orb3Tx, orb3Ty, 50, -90, 9000);
+
+    // 2. Logo Icon Breathing Loop
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(logoBreath, { toValue: 1.06, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(logoBreath, { toValue: 0.96, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    ).start();
+
+    // 3. Staggered Entrance Sequence
     const letterSequence = LETTERS.map((_, i) =>
       Animated.parallel([
-        Animated.spring(letterAnims[i].opacity, {
-          toValue: 1, tension: 80, friction: 8,
-          delay: i * 70, useNativeDriver: true,
-        }),
-        Animated.spring(letterAnims[i].translateY, {
-          toValue: 0, tension: 80, friction: 8,
-          delay: i * 70, useNativeDriver: true,
-        }),
-        Animated.spring(letterAnims[i].scale, {
-          toValue: 1, tension: 60, friction: 6,
-          delay: i * 70, useNativeDriver: true,
-        }),
+        Animated.spring(letterAnims[i].opacity, { toValue: 1, tension: 70, friction: 7, useNativeDriver: true }),
+        Animated.spring(letterAnims[i].translateY, { toValue: 0, tension: 70, friction: 7, useNativeDriver: true }),
+        Animated.spring(letterAnims[i].rotate, { toValue: 1, tension: 60, friction: 6, useNativeDriver: true }),
       ])
     );
 
     Animated.sequence([
-      Animated.stagger(70, letterSequence),
-      // Underline
-      Animated.timing(lineWidthAnim, {
-        toValue: 1, duration: 500,
-        easing: Easing.out(Easing.cubic), useNativeDriver: false,
-      }),
-      // Tagline
+      Animated.delay(100),
+      // Logo Icon zoom-in with rotation
       Animated.parallel([
-        Animated.timing(taglineAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-        Animated.timing(taglineSlide, { toValue: 0, duration: 400, useNativeDriver: true }),
+        Animated.spring(logoScale, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }),
+        Animated.timing(logoRotate, { toValue: 1, duration: 800, easing: Easing.bezier(0.175, 0.885, 0.32, 1.275), useNativeDriver: true }),
       ]),
-      Animated.delay(900),
-      // Exit — scale up and fade
+      // Letters drop in staggered
+      Animated.stagger(60, letterSequence),
+      // Tagline and loader appear
       Animated.parallel([
-        Animated.timing(exitAnim, {
-          toValue: 0, duration: 600,
-          easing: Easing.in(Easing.ease), useNativeDriver: true,
-        }),
-        Animated.spring(logoContainerAnim, {
-          toValue: 1, tension: 40, friction: 8, useNativeDriver: true,
-        }),
+        Animated.timing(taglineOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(taglineSlide, { toValue: 0, duration: 500, useNativeDriver: true }),
+        Animated.timing(loaderOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+      ]),
+      // Load progress bar (2200ms duration for premium speed, 100% native)
+      Animated.timing(progressAnim, {
+        toValue: 1,
+        duration: 2200,
+        easing: Easing.bezier(0.455, 0.03, 0.515, 0.955),
+        useNativeDriver: true,
+      }),
+      Animated.delay(500),
+      // Exit zoom and fade
+      Animated.parallel([
+        Animated.timing(exitOpacity, { toValue: 0, duration: 500, useNativeDriver: true }),
+        Animated.timing(exitScale, { toValue: 1.08, duration: 500, useNativeDriver: true }),
       ]),
     ]).start(() => {
       if (onFinish) onFinish();
@@ -172,62 +242,90 @@ export default function SplashScreen({ onFinish }) {
   }, []);
 
   return (
-    <Animated.View style={[styles.container, { opacity: exitAnim }]}>
-      <LinearGradient
-        colors={['#0A1628', '#0D2010', '#0A1628']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
+    <Animated.View 
+      style={[
+        styles.container, 
+        { 
+          opacity: exitOpacity,
+          transform: [{ scale: exitScale }]
+        }
+      ]}
+    >
+      {/* Black backdrop */}
+      <View style={styles.darkBackdrop} />
 
-      {/* Floating particles */}
-      {particles.map((p, i) => (
-        <Particle key={i} {...p} />
+      {/* Aurora Glow Orbs */}
+      <Animated.View style={[styles.auroraOrb, styles.orbGreen, { transform: [{ translateX: orb1Tx }, { translateY: orb1Ty }] }]} />
+      <Animated.View style={[styles.auroraOrb, styles.orbPurple, { transform: [{ translateX: orb2Tx }, { translateY: orb2Ty }] }]} />
+      <Animated.View style={[styles.auroraOrb, styles.orbBlue, { transform: [{ translateX: orb3Tx }, { translateY: orb3Ty }] }]} />
+
+      {/* Sparkles */}
+      {sparkles.map((s, i) => (
+        <FloatingSparkle key={i} {...s} />
       ))}
 
-      {/* Pulse rings behind logo */}
-      <View style={styles.ringContainer}>
-        <PulseRing delay={0} size={200} color="rgba(20,168,0,0.3)" />
-        <PulseRing delay={500} size={280} color="rgba(20,168,0,0.15)" />
-        <PulseRing delay={1000} size={360} color="rgba(20,168,0,0.08)" />
-      </View>
-
-      {/* Logo */}
-      <Animated.View
-        style={[
-          styles.logoWrapper,
-          {
-            transform: [{
-              scale: logoContainerAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [1, 1.15],
-              }),
-            }],
-          },
-        ]}
-      >
-        {/* Icon */}
-        <View style={styles.iconWrapper}>
-          <View style={styles.iconInner}>
-            <View style={styles.iconDot} />
-            <View style={styles.iconWave1} />
-            <View style={styles.iconWave2} />
-          </View>
+      {/* Glassmorphic Card Container */}
+      <View style={styles.glassCard}>
+        {/* Pulse rings behind logo icon */}
+        <View style={styles.rippleContainer}>
+          <RippleRing delay={0} size={150} />
+          <RippleRing delay={700} size={200} />
+          <RippleRing delay={1400} size={250} />
         </View>
 
-        {/* Letters */}
-        <View style={styles.lettersRow}>
+        {/* Brand Logo Icon */}
+        <Animated.View style={{ opacity: logoScale, transform: [{ scale: logoScale }] }}>
+          <Animated.View
+            style={[
+              styles.iconWrapper,
+              {
+                transform: [
+                  { scale: logoBreath },
+                  {
+                    rotate: logoRotate.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['-120deg', '0deg'],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={['#10B981', '#059669']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.iconGradient}
+            >
+              <Ionicons name="megaphone" size={26} color="#FFFFFF" style={styles.iconGraphic} />
+            </LinearGradient>
+          </Animated.View>
+        </Animated.View>
+
+        {/* Brand Letters */}
+        <View style={styles.lettersContainer}>
           {LETTERS.map((letter, i) => (
             <Animated.Text
               key={i}
               style={[
-                styles.letter,
+                styles.letterText,
                 letter === 'B' && styles.letterAccent,
                 {
                   opacity: letterAnims[i].opacity,
                   transform: [
                     { translateY: letterAnims[i].translateY },
-                    { scale: letterAnims[i].scale },
+                    {
+                      scale: letterAnims[i].opacity.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.3, 1],
+                      }),
+                    },
+                    {
+                      rotate: letterAnims[i].rotate.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['25deg', '0deg'],
+                      }),
+                    },
                   ],
                 },
               ]}
@@ -237,45 +335,37 @@ export default function SplashScreen({ onFinish }) {
           ))}
         </View>
 
-        {/* Underline */}
-        <Animated.View
-          style={[
-            styles.underline,
-            {
-              width: lineWidthAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, 140],
-              }),
-            },
-          ]}
-        />
-      </Animated.View>
-
-      {/* Tagline */}
-      <Animated.Text
-        style={[
-          styles.tagline,
-          {
-            opacity: taglineAnim,
-            transform: [{ translateY: taglineSlide }],
-          },
-        ]}
-      >
-        Influence · Collaborate · Grow
-      </Animated.Text>
-
-      {/* Bottom dots */}
-      <View style={styles.dotsRow}>
-        {[0, 1, 2].map((i) => (
+        {/* Underline decorative bar */}
+        <Animated.View style={[styles.underlineTrack, { opacity: loaderOpacity }]}>
           <Animated.View
-            key={i}
             style={[
-              styles.dot,
-              i === 1 && styles.dotActive,
-              { opacity: taglineAnim },
+              styles.underlineProgress,
+              {
+                transform: [
+                  {
+                    translateX: progressAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-140, 0],
+                    }),
+                  },
+                ],
+              },
             ]}
           />
-        ))}
+        </Animated.View>
+
+        {/* Dynamic Tagline */}
+        <Animated.Text
+          style={[
+            styles.tagline,
+            {
+              opacity: taglineOpacity,
+              transform: [{ translateY: taglineSlide }],
+            },
+          ]}
+        >
+          INFLUENCE  •  COLLABORATE  •  GROW
+        </Animated.Text>
       </View>
     </Animated.View>
   );
@@ -284,85 +374,146 @@ export default function SplashScreen({ onFinish }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#070A13',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ringContainer: {
+  darkBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#070A13',
+  },
+  // Aurora Glows
+  auroraOrb: {
     position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    opacity: 0.12,
+  },
+  orbGreen: {
+    backgroundColor: '#10B981',
+    top: height * 0.15,
+    left: -80,
+  },
+  orbPurple: {
+    backgroundColor: '#8B5CF6',
+    bottom: height * 0.18,
+    right: -100,
+  },
+  orbBlue: {
+    backgroundColor: '#3B82F6',
+    top: height * 0.45,
+    right: -60,
+  },
+  // Ripples
+  rippleContainer: {
+    position: 'absolute',
+    top: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 250,
+    height: 250,
+    zIndex: -1,
+  },
+  rippleRing: {
+    position: 'absolute',
+    borderWidth: 1.5,
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+    shadowColor: '#10B981',
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  // Glassmorphic Logo Card
+  glassCard: {
+    width: width * 0.86,
+    paddingVertical: 45,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 28,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.025)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  // Mega Logo Icon
+  iconWrapper: {
+    width: 76,
+    height: 76,
+    borderRadius: 22,
+    padding: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    marginBottom: 24,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  iconGradient: {
+    flex: 1,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoWrapper: {
-    alignItems: 'center',
-    marginBottom: 20,
+  iconGraphic: {
+    transform: [{ rotate: '-10deg' }],
   },
-  iconWrapper: {
-    width: 56, height: 56, borderRadius: 16,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 16,
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.6,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  iconInner: {
-    alignItems: 'center', justifyContent: 'center',
-  },
-  iconDot: {
-    width: 10, height: 10, borderRadius: 5,
-    backgroundColor: '#fff', marginBottom: 4,
-  },
-  iconWave1: {
-    width: 24, height: 3, borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.8)', marginBottom: 3,
-  },
-  iconWave2: {
-    width: 16, height: 3, borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.5)',
-  },
-  lettersRow: {
+  // Letters Styling
+  lettersContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
+    marginBottom: 16,
   },
-  letter: {
-    fontSize: 42,
-    fontWeight: '800',
+  letterText: {
+    fontSize: 46,
+    fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: -0.5,
+    letterSpacing: -1,
+    textShadowColor: 'rgba(255, 255, 255, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   letterAccent: {
-    color: COLORS.primary,
+    color: '#10B981',
+    textShadowColor: 'rgba(16, 185, 129, 0.65)',
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 12,
   },
-  underline: {
+  // Underline
+  underlineTrack: {
+    width: 140,
     height: 3,
-    backgroundColor: COLORS.primary,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: 2,
-    marginTop: 8,
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.8,
+    marginBottom: 20,
+    overflow: 'hidden',
+  },
+  underlineProgress: {
+    height: '100%',
+    backgroundColor: '#10B981',
+    borderRadius: 2,
+    shadowColor: '#10B981',
+    shadowOpacity: 0.9,
     shadowRadius: 6,
   },
+  // Tagline
   tagline: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.5)',
-    letterSpacing: 2,
+    fontSize: 10.5,
+    color: 'rgba(255, 255, 255, 0.45)',
+    letterSpacing: 3,
+    fontWeight: '600',
     textTransform: 'uppercase',
-    fontWeight: '500',
-    marginTop: 8,
-  },
-  dotsRow: {
-    flexDirection: 'row',
-    position: 'absolute',
-    bottom: 60,
-    gap: 6,
-  },
-  dot: {
-    width: 6, height: 6, borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  dotActive: {
-    width: 20,
-    backgroundColor: COLORS.primary,
+    textAlign: 'center',
   },
 });

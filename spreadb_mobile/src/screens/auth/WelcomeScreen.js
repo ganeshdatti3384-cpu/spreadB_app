@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Dimensions, Animated, StatusBar, Easing,
+  Dimensions, Animated, StatusBar, Easing, Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,124 +28,79 @@ const slides = [
 
 // Animated background that simulates video with moving shapes
 const AnimatedBackground = ({ role }) => {
+  const floatAnim = useRef(new Animated.Value(0)).current;
   const move1 = useRef(new Animated.Value(0)).current;
   const move2 = useRef(new Animated.Value(0)).current;
-  const move3 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // Floating sequence (5 seconds loop)
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: 1,
+          duration: 2500,
+          easing: Easing.bezier(0.445, 0.05, 0.55, 0.95),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 2500,
+          easing: Easing.bezier(0.445, 0.05, 0.55, 0.95),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Ambient loop
     const animate = (anim, duration, delay = 0) =>
       Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
           Animated.timing(anim, {
             toValue: 1, duration,
-            easing: Easing.inOut(Easing.sin), useNativeDriver: true,
+            easing: Easing.bezier(0.445, 0.05, 0.55, 0.95), useNativeDriver: true,
           }),
           Animated.timing(anim, {
             toValue: 0, duration,
-            easing: Easing.inOut(Easing.sin), useNativeDriver: true,
+            easing: Easing.bezier(0.445, 0.05, 0.55, 0.95), useNativeDriver: true,
           }),
         ])
       );
 
-    animate(move1, 4000).start();
-    animate(move2, 5500, 1000).start();
-    animate(move3, 3500, 500).start();
+    animate(move1, 4500).start();
+    animate(move2, 6000, 1000).start();
   }, []);
+
+  const translateY = floatAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -10],
+  });
+
+  const scale = floatAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.97, 1.03],
+  });
+
+  const rotate = floatAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['-0.8deg', '0.8deg'],
+  });
 
   const isBrand = role === 'brand';
 
   return (
     <View style={StyleSheet.absoluteFill}>
       {/* Dark base */}
-      <View style={[styles.bgBase, { backgroundColor: isBrand ? '#0A1628' : '#0A1A0A' }]} />
+      <View style={[styles.bgBase, { backgroundColor: isBrand ? '#090D16' : '#070A0E' }]} />
 
-      {/* Person 1 silhouette area */}
-      <Animated.View
-        style={[
-          styles.personSilhouette1,
-          {
-            transform: [{
-              translateY: move1.interpolate({ inputRange: [0, 1], outputRange: [0, -12] }),
-            }],
-          },
-        ]}
-      >
-        <LinearGradient
-          colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.03)']}
-          style={styles.silhouetteGrad}
-        >
-          {/* Head */}
-          <View style={styles.silHead} />
-          {/* Body */}
-          <View style={styles.silBody} />
-          {/* Desk */}
-          <View style={styles.silDesk} />
-        </LinearGradient>
-      </Animated.View>
-
-      {/* Person 2 silhouette area */}
-      <Animated.View
-        style={[
-          styles.personSilhouette2,
-          {
-            transform: [{
-              translateY: move2.interpolate({ inputRange: [0, 1], outputRange: [0, -8] }),
-            }],
-          },
-        ]}
-      >
-        <LinearGradient
-          colors={['rgba(20,168,0,0.12)', 'rgba(20,168,0,0.04)']}
-          style={styles.silhouetteGrad}
-        >
-          <View style={[styles.silHead, { backgroundColor: 'rgba(20,168,0,0.3)' }]} />
-          <View style={[styles.silBody, { backgroundColor: 'rgba(20,168,0,0.2)' }]} />
-          <View style={styles.silDesk} />
-        </LinearGradient>
-      </Animated.View>
-
-      {/* Floating connection elements */}
-      <Animated.View
-        style={[
-          styles.floatingCard1,
-          {
-            transform: [
-              { translateY: move3.interpolate({ inputRange: [0, 1], outputRange: [0, -10] }) },
-              { rotate: move1.interpolate({ inputRange: [0, 1], outputRange: ['-2deg', '2deg'] }) },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.floatingCardInner}>
-          <View style={styles.floatingCardDot} />
-          <View style={styles.floatingCardLine} />
-        </View>
-      </Animated.View>
-
-      <Animated.View
-        style={[
-          styles.floatingCard2,
-          {
-            transform: [
-              { translateY: move2.interpolate({ inputRange: [0, 1], outputRange: [0, -14] }) },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.floatingCardInner}>
-          <Ionicons name="trending-up" size={14} color={COLORS.primary} />
-          <View style={[styles.floatingCardLine, { width: 40 }]} />
-        </View>
-      </Animated.View>
-
-      {/* Ambient light blobs */}
+      {/* Ambient background glows */}
       <Animated.View
         style={[
           styles.lightBlob1,
           {
-            opacity: move1.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.3] }),
-            transform: [{ scale: move1.interpolate({ inputRange: [0, 1], outputRange: [1, 1.2] }) }],
+            backgroundColor: isBrand ? '#1F57C3' : COLORS.primary,
+            opacity: move1.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0.22] }),
+            transform: [{ scale: move1.interpolate({ inputRange: [0, 1], outputRange: [1, 1.15] }) }],
           },
         ]}
       />
@@ -153,10 +108,29 @@ const AnimatedBackground = ({ role }) => {
         style={[
           styles.lightBlob2,
           {
-            opacity: move2.interpolate({ inputRange: [0, 1], outputRange: [0.1, 0.25] }),
+            backgroundColor: isBrand ? COLORS.primary : '#8B5CF6',
+            opacity: move2.interpolate({ inputRange: [0, 1], outputRange: [0.1, 0.2] }),
           },
         ]}
       />
+
+      {/* Centered Collaboration Illustration */}
+      <View style={styles.illustrationContainer}>
+        <Animated.View
+          style={[
+            styles.illustrationWrapper,
+            {
+              transform: [{ translateY }, { scale }, { rotate }],
+            },
+          ]}
+        >
+          <Image
+            source={require('../../../assets/collaboration.png')}
+            style={styles.illustrationImage}
+            resizeMode="cover"
+          />
+        </Animated.View>
+      </View>
     </View>
   );
 };
@@ -289,59 +263,31 @@ const styles = StyleSheet.create({
 
   // Background
   bgBase: { ...StyleSheet.absoluteFillObject },
-  personSilhouette1: {
+  illustrationContainer: {
     position: 'absolute',
-    left: -20, top: height * 0.08,
-    width: width * 0.55, height: height * 0.55,
+    top: height * 0.15,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  personSilhouette2: {
-    position: 'absolute',
-    right: -20, top: height * 0.12,
-    width: width * 0.5, height: height * 0.5,
+  illustrationWrapper: {
+    width: width * 0.72,
+    height: width * 0.72,
+    borderRadius: (width * 0.72) / 2,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+    backgroundColor: 'rgba(16, 185, 129, 0.03)',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 8,
   },
-  silhouetteGrad: {
-    flex: 1, borderRadius: 20,
-    alignItems: 'center', justifyContent: 'flex-end',
-    paddingBottom: 20,
-  },
-  silHead: {
-    width: 50, height: 50, borderRadius: 25,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    marginBottom: 8,
-  },
-  silBody: {
-    width: 80, height: 100,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 12,
-    marginBottom: 4,
-  },
-  silDesk: {
-    width: 120, height: 8,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 4,
-  },
-  floatingCard1: {
-    position: 'absolute',
-    top: height * 0.28, left: width * 0.1,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 10, padding: 10,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-  },
-  floatingCard2: {
-    position: 'absolute',
-    top: height * 0.38, right: width * 0.08,
-    backgroundColor: 'rgba(20,168,0,0.12)',
-    borderRadius: 10, padding: 10,
-    borderWidth: 1, borderColor: 'rgba(20,168,0,0.2)',
-  },
-  floatingCardInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  floatingCardDot: {
-    width: 8, height: 8, borderRadius: 4,
-    backgroundColor: COLORS.primary,
-  },
-  floatingCardLine: {
-    width: 50, height: 2, borderRadius: 1,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  illustrationImage: {
+    width: '100%',
+    height: '100%',
   },
   lightBlob1: {
     position: 'absolute',
