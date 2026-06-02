@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "SpreadB",
+    "slug": "spreadb_mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "spreadb",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.spreadb.mobile",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "SpreadB uses your location to show nearby campaigns and influencers.",
+        "NSLocationAlwaysUsageDescription": "SpreadB uses your location to show nearby campaigns and influencers."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "package": "com.spreadb.mobile",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "CAMERA"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "SpreadB uses your location to show nearby campaigns and influencers."
+        }
+      ]
+    ]
+  }
+}

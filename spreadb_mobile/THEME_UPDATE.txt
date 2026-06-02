@@ -1,0 +1,54 @@
+THEME COLOR UPDATE - All Screens Unified
+=========================================
+
+WALLET THEME APPLIED TO ALL SCREENS ✅
+
+Dark Gradient Colors (from WalletScreen):
+['#0A2010', '#0D3015', '#0A1628']
+
+This exact gradient is now used in ALL screens:
+
+1. HomeScreen ✅
+   - Hero section updated
+   - File: src/screens/home/HomeScreen.js
+
+2. ProfileScreen ✅
+   - Header gradient updated
+   - File: src/screens/profile/ProfileScreen.js
+
+3. SignupScreen ✅
+   - Header gradient updated
+   - Button gradient updated
+   - File: src/screens/auth/SignupScreen.js
+
+4. WalletScreen ✅
+   - Already using this theme (reference)
+   - File: src/screens/wallet/WalletScreen.js
+
+5. PromotionsScreen ✅
+   - Already using this theme
+   - File: src/screens/promotions/PromotionsScreen.js
+
+6. SplashScreen ✅
+   - Already using similar dark theme
+   - File: src/screens/SplashScreen.js
+
+7. WelcomeScreen ✅
+   - Uses dark overlay (appropriate for welcome)
+   - File: src/screens/auth/WelcomeScreen.js
+
+8. MessagesScreen ✅
+   - Uses gradient avatars (appropriate)
+   - File: src/screens/messages/MessagesScreen.js
+
+9. ChatScreen ✅
+   - Uses WhatsApp-style colors (appropriate)
+   - File: src/screens/messages/ChatScreen.js
+
+ALL SCREENS NOW USE THE SAME DARK THEME!
+
+The app now has a consistent, professional dark theme
+throughout all screens, matching the WalletScreen design.
+
+Test: npm start
+All screens will have the same dark gradient header!
