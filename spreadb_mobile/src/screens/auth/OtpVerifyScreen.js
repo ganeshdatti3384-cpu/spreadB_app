@@ -42,9 +42,9 @@ export default function OtpVerifyScreen({ route, navigation }) {
   const checkClipboardForOTP = async () => {
     try {
       if (Platform.OS === 'ios' || Platform.OS === 'android') {
-        const { default: Clipboard } = await import('@react-native-clipboard/clipboard');
+        const Clipboard = await import('expo-clipboard');
         
-        const clipboardContent = await Clipboard.getString();
+        const clipboardContent = await Clipboard.getStringAsync();
         
         // Look for 6-digit OTP in various formats
         const otpPatterns = [

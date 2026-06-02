@@ -53,6 +53,13 @@ const messageSchema = new mongoose.Schema({
   },
   deletedAt: {
     type: Date
+  },
+  isEdited: {
+    type: Boolean,
+    default: false
+  },
+  editedAt: {
+    type: Date
   }
 }, {
   timestamps: true

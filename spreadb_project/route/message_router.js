@@ -8,7 +8,8 @@ import {
   createBasicProfiles,
   debugProfiles,
   deleteMessage,
-  markConversationAsRead
+  markConversationAsRead,
+  editMessage
 } from "../controller/message_controller.js";
 import { protect } from "../middleware/auth_middleware.js";
 import multer from "multer";
@@ -102,6 +103,9 @@ router.get("/test", (req, res) => {
 
 // DELETE /api/messages/:messageId - Delete a message
 router.delete("/:messageId", protect, deleteMessage);
+
+// PUT /api/messages/:messageId - Edit a text message
+router.put("/:messageId", protect, editMessage);
 
 // PUT /api/messages/conversations/:conversationId/read - Mark conversation as read
 router.put("/conversations/:conversationId/read", protect, markConversationAsRead);

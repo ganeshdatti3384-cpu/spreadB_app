@@ -6,6 +6,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES } from '../../theme/colors';
 import { getMyApplications, startConversation } from '../../api/applications';
+import { useAuth } from '../../context/AuthContext';
+import { deriveSharedKey, encryptMessage } from '../../utils/e2ee';
 
 const TABS = ['All', 'Pending', 'Accepted', 'Rejected'];
 
@@ -121,6 +123,7 @@ function ApplicationCard({ item, onPress, onChat, onAgreement }) {
 }
 
 export default function MyApplicationsScreen({ navigation }) {
+  const { user } = useAuth();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -169,10 +172,15 @@ export default function MyApplicationsScreen({ navigation }) {
     
     setChatLoading(application._id);
     try {
-      console.log('Sending message to brand owner:', brandOwnerId);
+      const promoId = application.promotion?._id || application.promotion || application.campaignId?._id || application.campaignId;
+      const key = deriveSharedKey(user?._id, brandOwnerId);
+      const initialText = `Hi! I'd like to discuss my application for "${campaignTitle}"`;
+      const encryptedText = encryptMessage(initialText, key);
+
       const res = await startConversation({
         receiverId: brandOwnerId,
-        content: `Hi! I'd like to discuss my application for "${campaignTitle}"`
+        content: encryptedText,
+        relatedPromotion: promoId
       });
       
       console.log('Start conversation response:', res.data);

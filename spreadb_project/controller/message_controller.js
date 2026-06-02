@@ -101,7 +101,15 @@ export const getConversationMessages = async (req, res) => {
     const skip = (page - 1) * limit;
     
     // Verify user is part of the conversation
-    const conversation = await Conversation.findById(conversationId);
+    const conversation = await Conversation.findById(conversationId)
+      .populate({
+        path: 'relatedPromotion',
+        select: 'title budget duration description categories brandOwnerId status'
+      })
+      .populate({
+        path: 'participants.userId',
+        select: 'firstName lastName email role lastSeen'
+      });
     if (!conversation) {
       return res.status(404).json({
         success: false,
@@ -111,8 +119,11 @@ export const getConversationMessages = async (req, res) => {
     
     // SECURITY: Strict participant verification with string conversion
     const isParticipant = conversation.participants.some(
-      p => String(p.userId) === String(userId)
+      p => String(p.userId?._id || p.userId) === String(userId)
     );
+
+    // Update current user's lastSeen
+    await User.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(err => console.log('Error updating lastSeen:', err));
     
     if (!isParticipant) {
       console.warn(`⚠️ Unauthorized access attempt to conversation ${conversationId} by user ${userId}`);
@@ -160,6 +171,7 @@ export const getConversationMessages = async (req, res) => {
     
     res.status(200).json({
       success: true,
+      conversation: conversation,
       messages: sanitizedMessages.reverse(), // Reverse to show oldest first
       pagination: {
         page,
@@ -179,7 +191,7 @@ export const getConversationMessages = async (req, res) => {
 // Send a new message
 export const sendMessage = async (req, res) => {
   try {
-    const { receiverId, content, messageType = "text", conversationId: bodyConversationId } = req.body;
+    const { receiverId, content, messageType = "text", conversationId: bodyConversationId, relatedPromotion } = req.body;
     const senderId = req.user.id;
     
     console.log('=== BACKEND Send Message Debug ===');
@@ -206,9 +218,15 @@ export const sendMessage = async (req, res) => {
         });
       }
       
+      // Update relatedPromotion if not set
+      if (relatedPromotion && !conversation.relatedPromotion) {
+        conversation.relatedPromotion = relatedPromotion;
+        await conversation.save();
+      }
+      
       // Verify user is part of the conversation
       const isParticipant = conversation.participants.some(
-        p => p.userId.toString() === senderId.toString()
+        p => String(p.userId?._id || p.userId) === senderId.toString()
       );
       if (!isParticipant) {
         return res.status(403).json({
@@ -382,8 +400,12 @@ export const sendMessage = async (req, res) => {
           { userId: senderId, role: sender.role },
           { userId: receiverId, role: receiver.role }
         ],
-        isActive: true  // Allow direct messaging
+        isActive: true,  // Allow direct messaging
+        relatedPromotion: relatedPromotion || undefined
       });
+      await conversation.save();
+    } else if (relatedPromotion && !conversation.relatedPromotion) {
+      conversation.relatedPromotion = relatedPromotion;
       await conversation.save();
     }
     
@@ -863,6 +885,77 @@ export const markConversationAsRead = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to mark conversation as read",
+      error: error.message
+    });
+  }
+};
+
+// Edit a text message
+export const editMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { content } = req.body;
+    const userId = req.user.id;
+
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Message content cannot be empty"
+      });
+    }
+
+    const message = await Message.findById(messageId);
+
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: "Message not found"
+      });
+    }
+
+    // Only sender can edit their message
+    if (message.senderId.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Can only edit your own messages"
+      });
+    }
+
+    // Can only edit text messages
+    if (message.messageType !== "text") {
+      return res.status(400).json({
+        success: false,
+        message: "Can only edit text messages"
+      });
+    }
+
+    message.content = content;
+    message.isEdited = true;
+    message.editedAt = new Date();
+    await message.save();
+
+    // Populate sender details for consistency
+    await message.populate('senderId', 'firstName lastName email role');
+    await message.populate('receiverId', 'firstName lastName email role');
+
+    // SECURITY: Ensure sender IDs are strings for consistency
+    const sanitizedMessage = {
+      ...message.toObject(),
+      sender: String(message.senderId?._id || message.senderId),
+      senderId: String(message.senderId?._id || message.senderId),
+      receiverId: String(message.receiverId?._id || message.receiverId),
+      _id: String(message._id)
+    };
+
+    res.status(200).json({
+      success: true,
+      message: sanitizedMessage
+    });
+  } catch (error) {
+    console.error("Error editing message:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to edit message",
       error: error.message
     });
   }

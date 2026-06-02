@@ -3,7 +3,6 @@ import {
   View, Text, StyleSheet, TouchableOpacity,
   Dimensions, Animated, StatusBar, Easing,
 } from 'react-native';
-import { Video } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES } from '../../theme/colors';

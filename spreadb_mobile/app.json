@@ -38,7 +38,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "SpreadB uses your location to show nearby campaigns and influencers."
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }

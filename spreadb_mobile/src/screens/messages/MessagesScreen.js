@@ -9,6 +9,7 @@ import { COLORS, SIZES } from '../../theme/colors';
 import { useAuth } from '../../context/AuthContext';
 import { getConversations } from '../../api/messages';
 import { getParticipantNameFromConversation, getOtherParticipant } from '../../utils/nameExtractor';
+import { deriveSharedKey, decryptMessage } from '../../utils/e2ee';
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
@@ -45,8 +46,17 @@ function Avatar({ name, size = 48 }) {
 function ConversationItem({ item, onPress, currentUserId }) {
   // Use utility function to extract participant name
   const otherName = getParticipantNameFromConversation(item, currentUserId);
+  const otherParticipant = getOtherParticipant(item, currentUserId);
+  const otherId = otherParticipant?.userId?._id || otherParticipant?.userId;
   
-  const lastMsg = item.lastMessage?.content || '';
+  let lastMsg = item.lastMessage?.content || '';
+  if (item.lastMessage?.messageType === 'text' && lastMsg && otherId && currentUserId) {
+    const key = deriveSharedKey(currentUserId, otherId);
+    lastMsg = decryptMessage(lastMsg, key);
+  } else if (item.lastMessage?.messageType === 'image') {
+    lastMsg = '📷 Photo';
+  }
+  
   const time = timeAgo(item.lastMessage?.createdAt || item.updatedAt);
   const unread = item.unreadCount || 0;
 

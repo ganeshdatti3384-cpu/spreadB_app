@@ -8,6 +8,7 @@ import { COLORS, SIZES } from '../../theme/colors';
 import { useAuth } from '../../context/AuthContext';
 import { getPromotionById, getCampaignApplicants } from '../../api/promotions';
 import { applyForPromotion, getSticksBalance, startConversation } from '../../api/applications';
+import { deriveSharedKey, encryptMessage } from '../../utils/e2ee';
 
 const TABS = ['Overview', 'Requirements', 'Brand'];
 
@@ -133,9 +134,14 @@ export default function PromotionDetailScreen({ route, navigation }) {
     
     setChatLoading(true);
     try {
+      const key = deriveSharedKey(user?._id, brandOwnerId);
+      const initialText = `Hi! I'm interested in your campaign "${promotion?.title}"`;
+      const encryptedText = encryptMessage(initialText, key);
+
       const res = await startConversation({
         receiverId: brandOwnerId,
-        content: `Hi! I'm interested in your campaign "${promotion?.title}"`
+        content: encryptedText,
+        relatedPromotion: id
       });
       
       const conversationId = res.data?.conversationId || res.data?.conversation?._id;

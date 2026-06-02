@@ -15,3 +15,11 @@ export const sendFileMessage = (formData) =>
   api.post('/api/messages/send', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
+
+// Backend: PUT /api/messages/:messageId
+export const editMessage = (messageId, data) =>
+  api.put(`/api/messages/${messageId}`, data);
+
+// Backend: DELETE /api/messages/:messageId
+export const deleteMessage = (messageId) =>
+  api.delete(`/api/messages/${messageId}`);

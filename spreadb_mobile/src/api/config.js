@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 //
 // Switch to LOCAL DEV when the production server is down or you're testing locally.
 // The Expo app on your phone/emulator must be on the same Wi-Fi as your dev machine.
-export const BASE_URL = 'http://192.168.29.206:3001';
+export const BASE_URL = 'http://192.168.1.66:3001';
 
 // ─── In-memory token cache ────────────────────────────────────────────────────
 // Avoids reading AsyncStorage on every single request (was adding 20-100ms lag)
