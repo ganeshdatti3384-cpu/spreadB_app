@@ -1,0 +1,100 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# ========================================
+# Node.js & Dependencies
+# ========================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# ========================================
+# Environment Variables (CRITICAL - DO NOT COMMIT)
+# ========================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+
+# ========================================
+# Backend Build & Logs
+# ========================================
+dist/
+build/
+logs/
+*.log
+.DS_Store
+
+# ========================================
+# Mobile App - Expo
+# ========================================
+.expo/
+.expo-shared/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+
+# ========================================
+# Mobile App - React Native
+# ========================================
+.bundle/
+.gradle/
+android/app/build/
+android/build/
+ios/build/
+ios/Pods/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata
+*.xccheckout
+*.moved-aside
+DerivedData
+*.hmap
+*.ipa
+*.xcuserstate
+project.xcworkspace
+
+# ========================================
+# Editor & IDE
+# ========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ========================================
+# Testing
+# ========================================
+coverage/
+.nyc_output/
+*.test.js.snap
+
+# ========================================
+# Uploads & User Generated Content
+# ========================================
+uploads/
+public/uploads/
+
+# ========================================
+# Temporary Files
+# ========================================
+tmp/
+temp/
+*.tmp
+*.bak
