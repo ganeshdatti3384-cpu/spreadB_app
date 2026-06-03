@@ -595,6 +595,45 @@ export default function PromotionDetailScreen({ route, navigation }) {
                 Spend additional sticks to push your application to the top of the brand owner's list. Higher boost appears first.
               </Text>
 
+              {/* Quick Select Buttons */}
+              <View style={styles.quickSelectRow}>
+                {[10, 20, 50].map((amount) => (
+                  <TouchableOpacity
+                    key={amount}
+                    style={[
+                      styles.quickSelectBtn,
+                      parseInt(boostSticksInput) === amount && styles.quickSelectBtnActive,
+                    ]}
+                    onPress={() => setBoostSticksInput(amount.toString())}
+                  >
+                    <Text
+                      style={[
+                        styles.quickSelectBtnText,
+                        parseInt(boostSticksInput) === amount && styles.quickSelectBtnTextActive,
+                      ]}
+                    >
+                      +{amount}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity
+                  style={[
+                    styles.quickSelectBtn,
+                    ![10, 20, 50].includes(parseInt(boostSticksInput) || 0) && styles.quickSelectBtnActive,
+                  ]}
+                  onPress={() => setBoostSticksInput('0')}
+                >
+                  <Text
+                    style={[
+                      styles.quickSelectBtnText,
+                      ![10, 20, 50].includes(parseInt(boostSticksInput) || 0) && styles.quickSelectBtnTextActive,
+                    ]}
+                  >
+                    Clear
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
               <View style={styles.inputContainer}>
                 <TextInput
                   style={styles.boostInput}
@@ -937,5 +976,35 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     color: '#D97706',
+  },
+  quickSelectRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+    flexWrap: 'wrap',
+  },
+  quickSelectBtn: {
+    flex: 1,
+    minWidth: 70,
+    height: 38,
+    borderRadius: SIZES.radius,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.white,
+  },
+  quickSelectBtnActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
+  },
+  quickSelectBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  quickSelectBtnTextActive: {
+    color: COLORS.primary,
+    fontWeight: '700',
   },
 });

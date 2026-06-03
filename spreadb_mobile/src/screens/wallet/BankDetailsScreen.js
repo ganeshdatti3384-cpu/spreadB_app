@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
-  ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES } from '../../theme/colors';
-import { getBankDetails, updateBankDetails } from '../../api/wallet';
+import { getBankDetails, updateBankDetails, verifyBankOtp } from '../../api/wallet';
 
 function FormInput({ label, value, onChangeText, placeholder, keyboardType, autoCapitalize }) {
   const [focused, setFocused] = useState(false);
@@ -39,6 +39,9 @@ export default function BankDetailsScreen({ navigation }) {
   const [existing, setExisting] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpVal, setOtpVal] = useState('');
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
 
   useEffect(() => {
     loadBankDetails();
@@ -75,13 +78,32 @@ export default function BankDetailsScreen({ navigation }) {
     setSaving(true);
     try {
       await updateBankDetails({ ...form, accountType });
-      Alert.alert('Success', 'Bank details saved. Pending verification.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      setOtpVal('');
+      setShowOtpModal(true);
     } catch (err) {
       Alert.alert('Error', err.response?.data?.message || 'Failed to save bank details');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpVal || otpVal.length < 6) {
+      return Alert.alert('Error', 'Please enter a valid 6-digit OTP');
+    }
+    setVerifyingOtp(true);
+    try {
+      await verifyBankOtp(otpVal);
+      setShowOtpModal(false);
+      Alert.alert('Success', 'Bank details verified successfully!', [
+        { text: 'OK', onPress: () => {
+          loadBankDetails();
+        } },
+      ]);
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.message || 'Verification failed. Please try again.');
+    } finally {
+      setVerifyingOtp(false);
     }
   };
 
@@ -218,6 +240,54 @@ export default function BankDetailsScreen({ navigation }) {
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Verification OTP Modal */}
+      <Modal visible={showOtpModal} transparent animationType="slide" onRequestClose={() => setShowOtpModal(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowOtpModal(false)} activeOpacity={1} />
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Verify Bank Details</Text>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowOtpModal(false)} activeOpacity={0.7}>
+                <Ionicons name="close" size={20} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalDesc}>
+              A 6-digit verification code has been sent to your email. Please enter it below to verify your bank details.
+            </Text>
+
+            <View style={styles.otpInputWrap}>
+              <TextInput
+                style={styles.otpInput}
+                value={otpVal}
+                onChangeText={(val) => {
+                  const clean = val.replace(/[^0-9]/g, '');
+                  setOtpVal(clean);
+                }}
+                maxLength={6}
+                keyboardType="number-pad"
+                placeholder="000000"
+                placeholderTextColor={COLORS.placeholder}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.modalSubmitBtn, verifyingOtp && styles.btnDisabled]}
+              onPress={handleVerifyOtp}
+              disabled={verifyingOtp}
+              activeOpacity={0.85}
+            >
+              {verifyingOtp ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.modalSubmitText}>Verify Code</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -290,4 +360,54 @@ const styles = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.6 },
   saveBtnText: { color: COLORS.white, fontSize: 16, fontWeight: '700' },
+
+  // Modal Styles
+  modalOverlay:  { flex: 1, justifyContent: 'flex-end' },
+  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
+  modalSheet: {
+    backgroundColor: COLORS.white, borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: 24, paddingBottom: 44,
+  },
+  modalHandle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: COLORS.border, alignSelf: 'center', marginBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20,
+  },
+  modalTitle:    { fontSize: 18, fontWeight: '700', color: COLORS.text },
+  modalCloseBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: COLORS.background, alignItems: 'center', justifyContent: 'center',
+  },
+  modalSubmitBtn: {
+    backgroundColor: COLORS.primary, borderRadius: SIZES.radius,
+    height: 52, alignItems: 'center', justifyContent: 'center',
+  },
+  modalSubmitText:  { color: '#fff', fontWeight: '700', fontSize: 16 },
+  modalDesc: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 20,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  otpInputWrap: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  otpInput: {
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    borderRadius: SIZES.radiusLg,
+    backgroundColor: COLORS.primaryLight,
+    paddingHorizontal: 20,
+    width: 200,
+    height: 56,
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.primary,
+    textAlign: 'center',
+    letterSpacing: 4,
+  },
 });

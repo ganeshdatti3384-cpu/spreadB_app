@@ -74,11 +74,17 @@ export const applyForPromotion = async (req, res) => {
 
     // Deduct sticks — prioritise free sticks first
     let remaining = totalSticksRequired;
+    let freeSticksSpent = 0;
+    let purchasedSticksSpent = 0;
+
     if (influencer.sticks.free >= remaining) {
       influencer.sticks.free -= remaining;
+      freeSticksSpent = remaining;
     } else {
+      freeSticksSpent = influencer.sticks.free;
       remaining -= influencer.sticks.free;
       influencer.sticks.free = 0;
+      purchasedSticksSpent = remaining;
       influencer.sticks.purchased = Math.max(0, influencer.sticks.purchased - remaining);
     }
     influencer.sticks.total -= totalSticksRequired;
@@ -89,6 +95,8 @@ export const applyForPromotion = async (req, res) => {
       type: "spent",
       amount: totalSticksRequired,
       description: `Applied to promotion: ${campaign.title}${additionalBoostSticks > 0 ? ` (Boosted with ${additionalBoostSticks} sticks)` : ''}`,
+      freeSticksSpent,
+      purchasedSticksSpent,
       date: new Date(),
     });
 

@@ -18,6 +18,7 @@ import counting_router from "./route/counting_router.js";
 import sticks_router from "./route/sticks_router.js";  // 🆕 Add sticks router
 import wallet_router from "./route/wallet_router.js";  // 🆕 Add wallet router
 import payment_router from "./route/payment_router.js";  // 🆕 Add payment router
+import admin_router from "./route/admin_router.js";  // 🆕 Add admin router
 
 
 // 🔍 DEBUG: Log environment variables on startup
@@ -88,8 +89,10 @@ app.use("/api/counting", counting_router);
 app.use("/api/sticks", sticks_router);  // 🆕 Add sticks routes
 app.use("/api/wallet", wallet_router);  // 🆕 Add wallet routes
 app.use("/api/payment", payment_router);  // 🆕 Add payment routes
+app.use("/api/admin", admin_router);  // 🆕 Add admin routes
 //app.use("/api/influencer", influencer_routers);
 app.use("/api/uploads/promotions", express.static("uploads/promotions"));
+app.use("/admin", express.static("../spreadb_admin"));
 
 const PORT = 3001;
 app.get("/", (req, res) => {

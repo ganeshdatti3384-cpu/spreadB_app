@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpreadB | Admin Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Page Loader -->
+  <div id="pageLoader" class="page-loader">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Auth Screen -->
+  <div id="authScreen" class="auth-container">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <div class="logo-icon"><i class="fa-solid fa-star-of-david"></i></div>
+        <div class="logo-text">SpreadB Admin</div>
+      </div>
+      <div class="auth-header">
+        <h1>Welcome Back</h1>
+        <p>Login to manage users, wallets, and withdrawal requests</p>
+      </div>
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" id="emailInput" class="form-input" placeholder="admin@spreadb.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" id="passwordInput" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="auth-btn">Log In to Dashboard</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Dashboard Screen -->
+  <div id="dashboardScreen" class="app-container hidden">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <div class="auth-logo" style="margin-bottom: 0; justify-content: flex-start;">
+          <div class="logo-icon" style="width: 32px; height: 32px; font-size: 16px;"><i class="fa-solid fa-star-of-david"></i></div>
+          <div class="logo-text" style="font-size: 18px;">SpreadB</div>
+        </div>
+      </div>
+      <ul class="nav-list">
+        <li class="nav-item active" data-tab="users">
+          <i class="fa-solid fa-users"></i>
+          <span>Users Directory</span>
+        </li>
+        <li class="nav-item" data-tab="transactions">
+          <i class="fa-solid fa-receipt"></i>
+          <span>Transactions</span>
+        </li>
+        <li class="nav-item" data-tab="withdrawals">
+          <i class="fa-solid fa-money-bill-transfer"></i>
+          <span>Withdrawals</span>
+        </li>
+      </ul>
+      <div class="sidebar-footer">
+        <a id="logoutLink" class="nav-item" style="color: var(--danger);">
+          <i class="fa-solid fa-right-from-bracket"></i>
+          <span>Log Out</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-panel">
+      <!-- Panel Header -->
+      <div class="panel-header">
+        <div class="panel-title">
+          <h1 id="tabTitle">Users Directory</h1>
+          <p id="tabDesc">Manage accounts, verify profiles, and check balances</p>
+        </div>
+        <div class="admin-profile">
+          <div class="avatar-circle" id="adminInitials">AD</div>
+          <div class="admin-info">
+            <span class="admin-name" id="adminName">Admin User</span>
+            <span class="admin-role">System Administrator</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats Summary -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-label">Total Active Users</span>
+            <div class="stat-icon primary"><i class="fa-solid fa-users"></i></div>
+          </div>
+          <span class="stat-number" id="statTotalUsers">0</span>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-label">Total Transactions</span>
+            <div class="stat-icon success"><i class="fa-solid fa-receipt"></i></div>
+          </div>
+          <span class="stat-number" id="statTotalTx">0</span>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-label">Pending Withdrawals</span>
+            <div class="stat-icon warning"><i class="fa-solid fa-clock"></i></div>
+          </div>
+          <span class="stat-number" id="statPendingWithdrawals">0</span>
+        </div>
+      </div>
+
+      <!-- Tab Content Area -->
+      <!-- 1. Users Panel -->
+      <div id="usersPanel" class="tab-panel active">
+        <div class="table-container">
+          <div class="table-header">
+            <h2>Registered Users List</h2>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>User Details</th>
+                <th>Role</th>
+                <th>Sticks Balance</th>
+                <th>Wallet Balance</th>
+                <th>Bank Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 2. Transactions Panel -->
+      <div id="transactionsPanel" class="tab-panel">
+        <div class="table-container">
+          <div class="table-header">
+            <h2>Global Transaction Audit Log</h2>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Transaction ID</th>
+                <th>User</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Description</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody id="transactionsTableBody">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 3. Withdrawals Panel -->
+      <div id="withdrawalsPanel" class="tab-panel">
+        <div class="table-container">
+          <div class="table-header">
+            <h2>Withdrawal Requests Operations</h2>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>User Details</th>
+                <th>Bank Account Info</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Date Submitted</th>
+                <th>Operations</th>
+              </tr>
+            </thead>
+            <tbody id="withdrawalsTableBody">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

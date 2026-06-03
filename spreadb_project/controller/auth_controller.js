@@ -220,6 +220,26 @@ const userLogin = async (req, res) => {
     if (!isMatch)
       return res.status(401).json({ message: "Invalid email or password" });
 
+    // Bypass OTP verification for Admin accounts
+    if (user.role === "Admin") {
+      const token = generateToken(user);
+      return res.status(200).json({
+        message: "Login successful",
+        token,
+        userId: user._id,
+        email: user.email,
+        role: user.role,
+        user: {
+          _id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          role: user.role,
+          isVerified: user.isVerified,
+        }
+      });
+    }
+
     const otp = generateOTP();
     const hashedOtp = await hashOtp(otp);
     user.otp = hashedOtp;

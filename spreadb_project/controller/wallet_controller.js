@@ -2,6 +2,7 @@ import Wallet from '../model/wallet_model.js';
 import { Promotion } from '../model/promotion_model.js';
 import User from '../model/users.js';
 import { InfluencerProfile } from '../model/profile.js';
+import { sendEmail } from '../utils/sendEmail.js';
 
 // Get wallet balance
 export const getWalletBalance = async (req, res) => {
@@ -102,6 +103,8 @@ export const getTransactions = async (req, res) => {
           description: t.description,
           status: 'completed',
           isSticks: true,
+          freeSticksSpent: t.freeSticksSpent || 0,
+          purchasedSticksSpent: t.purchasedSticksSpent || 0,
           createdAt: t.date || t.createdAt || new Date()
         }));
       }
@@ -410,7 +413,7 @@ export const withdrawMoney = async (req, res) => {
 // Add/Update bank details
 export const updateBankDetails = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.id || req.user._id;
     const { accountHolderName, accountNumber, ifscCode, bankName, branch } = req.body;
     
     let wallet = await Wallet.findOne({ userId });
@@ -418,28 +421,107 @@ export const updateBankDetails = async (req, res) => {
     if (!wallet) {
       wallet = new Wallet({ userId });
     }
-    
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
     wallet.bankDetails = {
       accountHolderName,
       accountNumber,
       ifscCode,
       bankName,
       branch,
-      verified: false // Admin needs to verify
+      verified: false,
+      otp,
+      otpExpires
     };
     
     await wallet.save();
+
+    // Find user's email to send the OTP
+    const user = await User.findById(userId);
+    if (user && user.email) {
+      await sendEmail(
+        user.email,
+        "SpreadB Bank Details Verification OTP",
+        `
+        <p>Hello ${user.firstName || 'User'},</p>
+        <p>You have updated your bank details on SpreadB. Please use the following One-Time Password (OTP) to verify your account:</p>
+        <h2 style="color: purple; font-size: 24px; letter-spacing: 2px;">${otp}</h2>
+        <p>This OTP is valid for 10 minutes. If you did not request this, please contact support immediately.</p>
+        `
+      );
+    }
     
     res.status(200).json({
       success: true,
-      message: 'Bank details updated successfully',
-      bankDetails: wallet.bankDetails
+      message: 'Bank details saved. An OTP has been sent to your email. Please verify to complete the process.',
+      bankDetails: {
+        accountHolderName,
+        accountNumber,
+        ifscCode,
+        bankName,
+        branch,
+        verified: false
+      }
     });
   } catch (error) {
     console.error('Update bank details error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to update bank details',
+      error: error.message
+    });
+  }
+};
+
+// Verify Bank details OTP
+export const verifyBankOtp = async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;
+    const { otp } = req.body;
+
+    if (!otp) {
+      return res.status(400).json({ success: false, message: 'OTP is required' });
+    }
+
+    const wallet = await Wallet.findOne({ userId });
+    if (!wallet || !wallet.bankDetails) {
+      return res.status(404).json({ success: false, message: 'Bank details not found' });
+    }
+
+    if (wallet.bankDetails.verified) {
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Bank details are already verified', 
+        bankDetails: wallet.bankDetails 
+      });
+    }
+
+    if (wallet.bankDetails.otp !== otp) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP code' });
+    }
+
+    if (new Date() > wallet.bankDetails.otpExpires) {
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please re-submit your bank details to request a new OTP.' });
+    }
+
+    wallet.bankDetails.verified = true;
+    wallet.bankDetails.otp = undefined;
+    wallet.bankDetails.otpExpires = undefined;
+    await wallet.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Bank details verified successfully',
+      bankDetails: wallet.bankDetails
+    });
+  } catch (error) {
+    console.error('Verify bank details OTP error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to verify bank details OTP',
       error: error.message
     });
   }

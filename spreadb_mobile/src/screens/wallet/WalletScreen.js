@@ -114,11 +114,11 @@ function AmountModal({ visible, title, subtitle, onClose, onSubmit, loading }) {
 }
 
 // ─── Transaction Item ────────────────────────────────────────────────────────
-function TxItem({ tx, index }) {
+function TxItem({ tx, index, onPress }) {
   const cfg = getTxConfig(tx.type);
   const isCredit = cfg.sign === '+';
   return (
-    <View style={styles.txItem}>
+    <TouchableOpacity style={styles.txItem} onPress={onPress} activeOpacity={0.7}>
       <View style={[styles.txIconWrap, { backgroundColor: cfg.bg }]}>
         <Ionicons name={cfg.icon} size={18} color={cfg.color} />
       </View>
@@ -131,7 +131,118 @@ function TxItem({ tx, index }) {
       <Text style={[styles.txAmount, { color: isCredit ? COLORS.primary : COLORS.text }]}>
         {cfg.sign}{tx.isSticks ? '' : '₹'}{tx.amount?.toLocaleString?.() ?? tx.amount}{tx.isSticks ? ' Sticks' : ''}
       </Text>
-    </View>
+    </TouchableOpacity>
+  );
+}
+
+// ─── Transaction Detail Modal ────────────────────────────────────────────────
+function TxDetailModal({ visible, tx, onClose }) {
+  if (!tx) return null;
+  const cfg = getTxConfig(tx.type);
+  const isCredit = cfg.sign === '+';
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <TouchableOpacity style={styles.modalBackdrop} onPress={onClose} activeOpacity={1} />
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHandle} />
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Transaction Details</Text>
+            <TouchableOpacity style={styles.modalCloseBtn} onPress={onClose} activeOpacity={0.7}>
+              <Ionicons name="close" size={20} color={COLORS.text} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+            {/* Icon + Amount */}
+            <View style={styles.detailAmountWrap}>
+              <View style={[styles.detailIconWrap, { backgroundColor: cfg.bg }]}>
+                <Ionicons name={cfg.icon} size={28} color={cfg.color} />
+              </View>
+              <Text style={[styles.detailAmountVal, { color: isCredit ? COLORS.primary : COLORS.text }]}>
+                {cfg.sign}{tx.isSticks ? '' : '₹'}{tx.amount?.toLocaleString?.() ?? tx.amount}{tx.isSticks ? ' Sticks' : ''}
+              </Text>
+            </View>
+
+            {/* Fields */}
+            <View style={styles.detailFields}>
+              <View style={styles.detailFieldRow}>
+                <Text style={styles.detailFieldLabel}>Description</Text>
+                <Text style={styles.detailFieldValText}>{tx.description || 'N/A'}</Text>
+              </View>
+
+              <View style={styles.detailFieldRow}>
+                <Text style={styles.detailFieldLabel}>Transaction ID</Text>
+                <Text style={styles.detailFieldVal}>{tx._id || 'N/A'}</Text>
+              </View>
+
+              <View style={styles.detailFieldRow}>
+                <Text style={styles.detailFieldLabel}>Date & Time</Text>
+                <Text style={styles.detailFieldVal}>
+                  {tx.createdAt || tx.date ? new Date(tx.createdAt || tx.date).toLocaleString('en-IN') : 'N/A'}
+                </Text>
+              </View>
+
+              <View style={styles.detailFieldRow}>
+                <Text style={styles.detailFieldLabel}>Status</Text>
+                <View style={[
+                  styles.statusBadgeInline,
+                  { backgroundColor: tx.status?.toLowerCase() === 'completed' ? COLORS.primaryLight : '#FEF3C7' }
+                ]}>
+                  <Text style={[
+                    styles.statusBadgeTextInline,
+                    { color: tx.status?.toLowerCase() === 'completed' ? COLORS.primary : '#D97706' }
+                  ]}>
+                    {tx.status || 'Completed'}
+                  </Text>
+                </View>
+              </View>
+
+              {tx.paymentMethod && (
+                <View style={styles.detailFieldRow}>
+                  <Text style={styles.detailFieldLabel}>Payment Method</Text>
+                  <Text style={[styles.detailFieldVal, { textTransform: 'capitalize' }]}>
+                    {tx.paymentMethod.replace('_', ' ')}
+                  </Text>
+                </View>
+              )}
+
+              {tx.paymentGatewayId && (
+                <View style={styles.detailFieldRow}>
+                  <Text style={styles.detailFieldLabel}>Gateway ID</Text>
+                  <Text style={styles.detailFieldVal}>{tx.paymentGatewayId}</Text>
+                </View>
+              )}
+
+              {tx.relatedPromotion?.title && (
+                <View style={styles.detailFieldRow}>
+                  <Text style={styles.detailFieldLabel}>Campaign</Text>
+                  <Text style={styles.detailFieldVal}>{tx.relatedPromotion.title}</Text>
+                </View>
+              )}
+
+              {tx.isSticks && tx.type === 'spent' && (
+                <>
+                  <View style={styles.detailFieldRow}>
+                    <Text style={styles.detailFieldLabel}>Free Sticks Spent</Text>
+                    <Text style={styles.detailFieldVal}>{tx.freeSticksSpent || 0} sticks</Text>
+                  </View>
+                  <View style={styles.detailFieldRow}>
+                    <Text style={styles.detailFieldLabel}>Purchased Sticks Spent</Text>
+                    <Text style={styles.detailFieldVal}>{tx.purchasedSticksSpent || 0} sticks</Text>
+                  </View>
+                </>
+              )}
+            </View>
+          </ScrollView>
+
+          <TouchableOpacity style={styles.detailCloseBtn} onPress={onClose} activeOpacity={0.85}>
+            <Text style={styles.detailCloseBtnText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -147,6 +258,8 @@ export default function WalletScreen({ navigation }) {
   const [addModal, setAddModal]         = useState(false);
   const [withdrawModal, setWithdrawModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [selectedTx, setSelectedTx]       = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -378,7 +491,17 @@ export default function WalletScreen({ navigation }) {
               <Text style={styles.emptyTxSubtitle}>Your transaction history will appear here</Text>
             </View>
           ) : (
-            transactions.map((tx, index) => <TxItem key={tx._id || index} tx={tx} index={index} />)
+            transactions.map((tx, index) => (
+              <TxItem 
+                key={tx._id || index} 
+                tx={tx} 
+                index={index} 
+                onPress={() => {
+                  setSelectedTx(tx);
+                  setShowDetailModal(true);
+                }}
+              />
+            ))
           )}
         </View>
 
@@ -401,6 +524,14 @@ export default function WalletScreen({ navigation }) {
         onClose={() => setWithdrawModal(false)}
         onSubmit={handleWithdraw}
         loading={actionLoading}
+      />
+      <TxDetailModal
+        visible={showDetailModal}
+        tx={selectedTx}
+        onClose={() => {
+          setShowDetailModal(false);
+          setSelectedTx(null);
+        }}
       />
     </View>
   );
@@ -575,4 +706,74 @@ const styles = StyleSheet.create({
   },
   btnDisabled:      { opacity: 0.6 },
   modalSubmitText:  { color: '#fff', fontWeight: '700', fontSize: 16 },
+
+  // Details Modal styles
+  detailAmountWrap: {
+    alignItems: 'center',
+    marginVertical: 20,
+    gap: 12,
+  },
+  detailIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailAmountVal: {
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  detailFields: {
+    backgroundColor: COLORS.background,
+    borderRadius: SIZES.radiusLg,
+    padding: 16,
+    gap: 16,
+    marginBottom: 20,
+  },
+  detailFieldRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+    paddingBottom: 12,
+  },
+  detailFieldLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  detailFieldVal: {
+    fontSize: 14,
+    color: COLORS.text,
+    fontWeight: '600',
+  },
+  detailFieldValText: {
+    fontSize: 14,
+    color: COLORS.text,
+    fontWeight: '600',
+    lineHeight: 20,
+  },
+  statusBadgeInline: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  statusBadgeTextInline: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  detailCloseBtn: {
+    height: 48,
+    backgroundColor: COLORS.primary,
+    borderRadius: SIZES.radius,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  detailCloseBtnText: {
+    color: COLORS.white,
+    fontWeight: '700',
+    fontSize: 15,
+  },
 });

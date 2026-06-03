@@ -30,6 +30,7 @@ router.post('/withdraw', protect, walletController.withdrawMoney);
 // Bank details
 router.get('/bank-details', protect, walletController.getBankDetails);
 router.post('/bank-details', protect, walletController.updateBankDetails);
+router.post('/bank-details/verify', protect, walletController.verifyBankOtp);
 
 // Approve bank details (Admin endpoint)
 router.post('/approve-bank-details', walletController.approveBankDetails);

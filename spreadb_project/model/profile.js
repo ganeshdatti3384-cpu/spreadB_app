@@ -67,6 +67,8 @@ const influencerSchema = new mongoose.Schema(
         description: { type: String },
         paymentId: { type: String },
         orderId: { type: String },
+        freeSticksSpent: { type: Number, default: 0 },
+        purchasedSticksSpent: { type: Number, default: 0 },
         date: { type: Date, default: Date.now }
       }]
     },

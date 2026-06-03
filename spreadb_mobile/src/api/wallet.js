@@ -18,6 +18,9 @@ export const getBankDetails = () => api.get('/api/wallet/bank-details');
 // Backend: POST /api/wallet/bank-details
 export const updateBankDetails = (data) => api.post('/api/wallet/bank-details', data);
 
+// Backend: POST /api/wallet/bank-details/verify
+export const verifyBankOtp = (otp) => api.post('/api/wallet/bank-details/verify', { otp });
+
 // Backend: GET /api/wallet/check-balance
 export const checkBalance = (amount) =>
   api.get('/api/wallet/check-balance', { params: { amount } });

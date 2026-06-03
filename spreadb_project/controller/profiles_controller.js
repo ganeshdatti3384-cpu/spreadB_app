@@ -1,6 +1,9 @@
 import { InfluencerProfile, BrandOwnerProfile } from "../model/profile.js";
 import { Notification } from "../model/notification_model.js";
 import User from "../model/users.js";
+import { Application } from "../model/promotion_model.js";
+import { Agreement } from "../model/agreement_model.js";
+import Wallet from "../model/wallet_model.js";
 // =========================================
 // Create Influencer Profile
 // =========================================
@@ -211,12 +214,26 @@ const createBrandOwner = async (req, res) => {
 
 const getInfluencerProfile = async (req, res) => {
   try {
-    const profile = await InfluencerProfile.findOne({ userId: req.user._id });
+    const userId = req.user._id;
+    const profile = await InfluencerProfile.findOne({ userId });
 
     if (!profile)
       return res.status(404).json({ message: "Influencer profile not found" });
 
-    res.json(profile);
+    // Calculate dynamic stats
+    const applicationsCount = await Application.countDocuments({
+      influencerId: userId,
+      status: { $ne: "withdrawn" }
+    });
+
+    const wallet = await Wallet.findOne({ userId });
+    const earnings = wallet?.totalEarned || wallet?.balance || 0;
+
+    const profileObj = profile.toObject();
+    profileObj.applicationsCount = applicationsCount;
+    profileObj.earnings = earnings;
+
+    res.json(profileObj);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -224,12 +241,21 @@ const getInfluencerProfile = async (req, res) => {
 
 const getBrandOwnerProfile = async (req, res) => {
   try {
-    const profile = await BrandOwnerProfile.findOne({ userId: req.user._id });
+    const userId = req.user._id;
+    const profile = await BrandOwnerProfile.findOne({ userId });
 
     if (!profile)
       return res.status(404).json({ message: "Brand Owner profile not found" });
 
-    res.json(profile);
+    const activeCollabs = await Agreement.countDocuments({
+      brandOwnerId: userId,
+      influencerSigned: true
+    });
+
+    const profileObj = profile.toObject();
+    profileObj.activeCollaborations = activeCollabs;
+
+    res.json(profileObj);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
