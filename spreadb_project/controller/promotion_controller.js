@@ -296,7 +296,7 @@ export const getProposalsReceived = async (req, res) => {
     })
       .populate("campaignId", "title budget")
       .populate("influencerId", "firstName lastName email")
-      .sort({ createdAt: -1 });
+      .sort({ boostSticks: -1, createdAt: -1 });
 
     console.log('Found applications:', applications.length);
 
@@ -686,7 +686,7 @@ export const getApplicantsForCampaign = async (req, res) => {
     // Fetch applications + influencer data
     const applicants = await Application.find({ campaignId })
       .populate("influencerId", "firstName lastName email role")
-      .sort({ createdAt: -1 });
+      .sort({ boostSticks: -1, createdAt: -1 });
 
     console.log('Found applicants:', applicants.length);
 
@@ -723,6 +723,7 @@ export const getApplicantsForCampaign = async (req, res) => {
         status: app.status,
         appliedOn: app.createdAt,
         notes: app.notes || null,
+        boostSticks: app.boostSticks || 0,
 
         // Add these fields for compatibility with frontend
         firstName: firstName,

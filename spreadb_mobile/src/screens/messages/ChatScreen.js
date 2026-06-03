@@ -2,9 +2,9 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
-  Image, Modal, ScrollView, Dimensions, StatusBar,
+  Image, Modal, ScrollView, Dimensions, StatusBar, Keyboard,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
@@ -74,6 +74,7 @@ function groupMessagesByDate(messages) {
 export default function ChatScreen({ route, navigation }) {
   const { conversationId, participantName, campaignName } = route.params || {};
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const [messages, setMessages] = useState([]);
   const [conversation, setConversation] = useState(null);
@@ -81,6 +82,7 @@ export default function ChatScreen({ route, navigation }) {
   const [sending, setSending] = useState(false);
   const [inputText, setInputText] = useState('');
   const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   
   // Custom states for WhatsApp features
   const [attachModalVisible, setAttachModalVisible] = useState(false);
@@ -156,6 +158,20 @@ export default function ChatScreen({ route, navigation }) {
     return () => clearInterval(pollRef.current);
   }, [load]);
 
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardVisible(true);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+    });
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
   const handleSend = async () => {
     const text = inputText.trim();
     if (!text || sending) return;
@@ -168,6 +184,48 @@ export default function ChatScreen({ route, navigation }) {
     const dangerousPatterns = /<script|<iframe|javascript:/gi;
     if (dangerousPatterns.test(text)) {
       Alert.alert('Error', 'Message contains invalid content');
+      return;
+    }
+
+    // Convert spelled out words to digits for validation (e.g. "nine" -> "9")
+    const convertWordsToDigits = (str) => {
+      if (!str) return '';
+      const wordMap = {
+        'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4',
+        'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9'
+      };
+      let processed = str.toLowerCase();
+      Object.keys(wordMap).forEach(word => {
+        const regex = new RegExp(`\\b${word}\\b`, 'g');
+        processed = processed.replace(regex, wordMap[word]);
+      });
+      return processed;
+    };
+
+    const processedText = convertWordsToDigits(text);
+
+    // Restrict email sharing
+    const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/i;
+    if (emailRegex.test(text) || emailRegex.test(processedText)) {
+      Alert.alert('Sharing Restricted', 'Sharing email addresses in chat is not allowed for security reasons.');
+      return;
+    }
+
+    // Restrict phone number sharing
+    const phoneRegex = /(\+?\d{1,4}[-.\s]?)?\(?\d{3,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{4}/;
+    const cleanedDigits = text.replace(/[^0-9]/g, '');
+    const hasTenConsecutiveDigits = /\d{10,}/.test(cleanedDigits);
+
+    const processedCleanedDigits = processedText.replace(/[^0-9]/g, '');
+    const hasProcessedTenConsecutiveDigits = /\d{10,}/.test(processedCleanedDigits);
+
+    if (
+      phoneRegex.test(text) || 
+      hasTenConsecutiveDigits || 
+      phoneRegex.test(processedText) || 
+      hasProcessedTenConsecutiveDigits
+    ) {
+      Alert.alert('Sharing Restricted', 'Sharing phone numbers in chat is not allowed for security reasons.');
       return;
     }
 
@@ -534,17 +592,18 @@ export default function ChatScreen({ route, navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" translucent={false} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
       {/* ── HEADER (SELECTION OR NORMAL) ── */}
       <LinearGradient
         colors={['#0A2010', '#0D3015', '#0A1628']}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={styles.headerContainer}
+        style={[styles.headerContainer, { paddingTop: insets.top }]}
       >
         {selectedMessages.length > 0 ? (
           /* ── SELECTION HEADER ── */
@@ -713,6 +772,8 @@ export default function ChatScreen({ route, navigation }) {
           showsVerticalScrollIndicator={false}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
           ListHeaderComponent={renderListHeader}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <View style={styles.emptyChat}>
               <View style={styles.emptyChatIconWrap}>
@@ -750,7 +811,7 @@ export default function ChatScreen({ route, navigation }) {
       )}
 
       {/* ── INPUT BAR ── */}
-      <View style={styles.inputBar}>
+      <View style={[styles.inputBar, { paddingBottom: (!keyboardVisible && insets.bottom > 0) ? insets.bottom : 8 }]}>
         <TouchableOpacity
           style={styles.attachBtn}
           onPress={() => setAttachModalVisible(true)}
@@ -958,7 +1019,7 @@ export default function ChatScreen({ route, navigation }) {
         </View>
       </Modal>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 

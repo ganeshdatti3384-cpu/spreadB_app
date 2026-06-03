@@ -186,7 +186,14 @@ export default function ProposalsScreen({ navigation }) {
         <View style={styles.cardHeader}>
           <InitialsAvatar name={influencerName} />
           <View style={styles.cardHeaderInfo}>
-            <Text style={styles.influencerName}>{influencerName}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.influencerName}>{influencerName}</Text>
+              {item.boostSticks > 0 && (
+                <View style={styles.boostPill}>
+                  <Text style={styles.boostPillText}>⚡ Boosted ({item.boostSticks})</Text>
+                </View>
+              )}
+            </View>
             {username && <Text style={styles.influencerUsername}>{username}</Text>}
           </View>
           <StatusBadge status={item.status} />
@@ -438,4 +445,17 @@ const styles = StyleSheet.create({
   },
   emptyTitle:    { fontSize: 16, fontWeight: '700', color: COLORS.text, marginTop: 4 },
   emptySubtitle: { fontSize: 13, color: COLORS.textSecondary, marginTop: 6, textAlign: 'center', lineHeight: 20 },
+  boostPill: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderWidth: 0.5,
+    borderColor: '#F59E0B',
+  },
+  boostPillText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#D97706',
+  },
 });

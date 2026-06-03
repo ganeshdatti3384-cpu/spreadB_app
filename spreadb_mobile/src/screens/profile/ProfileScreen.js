@@ -302,6 +302,12 @@ export default function ProfileScreen({ navigation }) {
             accent={COLORS.primary} 
             onPress={() => navigation.navigate('Agreements')} 
           />
+          <MenuItem 
+            icon="key-outline" 
+            label="Change Password" 
+            accent="#8B5CF6" 
+            onPress={() => navigation.navigate('ChangePassword')} 
+          />
         </View>
 
         {/* Logout */}

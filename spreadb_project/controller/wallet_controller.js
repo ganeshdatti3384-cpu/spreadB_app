@@ -63,6 +63,7 @@ export const getWalletBalance = async (req, res) => {
         sticksFree: sticksData?.free ?? null,
         sticksPurchased: sticksData?.purchased ?? null,
         sticksSpent: sticksData?.spent ?? null,
+        bankDetailsVerified: wallet.bankDetails?.verified ?? false,
       }
     });
   } catch (error) {
@@ -78,36 +79,50 @@ export const getWalletBalance = async (req, res) => {
 // Get wallet transactions
 export const getTransactions = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id || req.user.id;
     const { limit = 50, skip = 0, type } = req.query;
     
     let wallet = await Wallet.findOne({ userId })
       .populate('transactions.relatedPromotion', 'title')
       .populate('transactions.relatedUser', 'firstName lastName');
     
-    if (!wallet) {
-      return res.status(200).json({
-        success: true,
-        transactions: []
-      });
+    let walletTransactions = wallet?.transactions ? wallet.transactions.map(t => ({
+      ...t.toObject(),
+      isSticks: false
+    })) : [];
+
+    let sticksTx = [];
+    if (req.user.role === 'Influencer') {
+      const profile = await InfluencerProfile.findOne({ userId });
+      if (profile && profile.sticks && profile.sticks.transactions) {
+        sticksTx = profile.sticks.transactions.map(t => ({
+          _id: t._id,
+          type: t.type, // 'earned', 'spent', 'purchased'
+          amount: t.amount,
+          description: t.description,
+          status: 'completed',
+          isSticks: true,
+          createdAt: t.date || t.createdAt || new Date()
+        }));
+      }
     }
-    
-    let transactions = wallet.transactions;
+
+    let combined = [...walletTransactions, ...sticksTx];
     
     if (type) {
-      transactions = transactions.filter(t => t.type === type);
+      combined = combined.filter(t => t.type === type);
     }
     
     // Sort by newest first
-    transactions.sort((a, b) => b.createdAt - a.createdAt);
+    combined.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     
     // Pagination
-    const paginatedTransactions = transactions.slice(parseInt(skip), parseInt(skip) + parseInt(limit));
+    const paginatedTransactions = combined.slice(parseInt(skip), parseInt(skip) + parseInt(limit));
     
     res.status(200).json({
       success: true,
       transactions: paginatedTransactions,
-      total: transactions.length
+      total: combined.length
     });
   } catch (error) {
     console.error('Get transactions error:', error);

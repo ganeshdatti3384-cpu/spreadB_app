@@ -22,6 +22,8 @@ const TX_CONFIG = {
   held:       { icon: 'time',              color: COLORS.warning, sign: '-', bg: '#FEF3C7' },
   released:   { icon: 'arrow-up-circle',   color: COLORS.error,   sign: '-', bg: '#FEE2E2' },
   spent:      { icon: 'arrow-up-circle',   color: COLORS.error,   sign: '-', bg: '#FEE2E2' },
+  purchased:  { icon: 'arrow-down-circle', color: COLORS.primary, sign: '+', bg: COLORS.primaryLight },
+  earned:     { icon: 'arrow-down-circle', color: COLORS.primary, sign: '+', bg: COLORS.primaryLight },
 };
 
 function getTxConfig(type) {
@@ -127,7 +129,7 @@ function TxItem({ tx, index }) {
         <Text style={styles.txDate}>{formatDate(tx.createdAt || tx.date)}</Text>
       </View>
       <Text style={[styles.txAmount, { color: isCredit ? COLORS.primary : COLORS.text }]}>
-        {cfg.sign}₹{tx.amount?.toLocaleString?.() ?? tx.amount}
+        {cfg.sign}{tx.isSticks ? '' : '₹'}{tx.amount?.toLocaleString?.() ?? tx.amount}{tx.isSticks ? ' Sticks' : ''}
       </Text>
     </View>
   );
@@ -161,20 +163,22 @@ export default function WalletScreen({ navigation }) {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const unsubscribe = navigation.addListener('focus', () => {
+      load();
+    });
+    return unsubscribe;
+  }, [navigation, load]);
 
-  const handleAddMoney = async ({ amount }) => {
-    setActionLoading(true);
-    try {
-      await addMoney({ amount });
-      setAddModal(false);
-      await load();
-      Alert.alert('Success', `₹${amount.toLocaleString()} added to your wallet`);
-    } catch (e) {
-      Alert.alert('Error', e.response?.data?.message || 'Failed to add money');
-    } finally {
-      setActionLoading(false);
-    }
+  const handleAddMoney = ({ amount }) => {
+    setAddModal(false);
+    navigation.navigate('SecureCheckout', {
+      amount,
+      paymentType: 'wallet_recharge',
+      title: 'Add Money to Wallet',
+      subtitle: 'SpreadB Wallet Deposit'
+    });
   };
 
   const handleWithdraw = async ({ amount }) => {
@@ -200,6 +204,7 @@ export default function WalletScreen({ navigation }) {
   const sticksFree       = balance?.sticksFree       ?? 0;
   const sticksPurchased  = balance?.sticksPurchased  ?? 0;
   const sticksSpent      = balance?.sticksSpent      ?? 0;
+  const bankDetailsVerified = balance?.bankDetailsVerified ?? false;
 
   if (loading) {
     return (
@@ -285,7 +290,11 @@ export default function WalletScreen({ navigation }) {
 
               {/* Action buttons */}
               <View style={styles.actionsRow}>
-                <TouchableOpacity style={styles.actionBtnPrimary} activeOpacity={0.85}>
+                <TouchableOpacity 
+                  style={styles.actionBtnPrimary} 
+                  onPress={() => navigation.navigate('SticksPricing')}
+                  activeOpacity={0.85}
+                >
                   <Ionicons name="add" size={18} color="#fff" />
                   <Text style={styles.actionBtnPrimaryText}>Buy Sticks</Text>
                 </TouchableOpacity>
@@ -343,8 +352,10 @@ export default function WalletScreen({ navigation }) {
                 <Text style={styles.bankTitle}>Bank Details</Text>
                 <Text style={styles.bankSubtitle}>Manage your withdrawal account</Text>
               </View>
-              <View style={styles.verifiedBadge}>
-                <Text style={styles.verifiedText}>Verified</Text>
+              <View style={bankDetailsVerified ? styles.verifiedBadge : styles.unverifiedBadge}>
+                <Text style={bankDetailsVerified ? styles.verifiedText : styles.unverifiedText}>
+                  {bankDetailsVerified ? 'Verified' : 'Unverified'}
+                </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={COLORS.textLight} />
             </TouchableOpacity>
@@ -483,6 +494,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 3,
   },
   verifiedText: { fontSize: 10, fontWeight: '600', color: COLORS.primary },
+  unverifiedBadge: {
+    backgroundColor: '#FEE2E2', borderRadius: SIZES.radiusFull,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  unverifiedText: { fontSize: 10, fontWeight: '600', color: COLORS.error },
 
   // Transactions
   txHeader: {

@@ -4,7 +4,10 @@ import {
   userLogin,
   refreshToken,
   forgotPassword,
+  verifyForgotOtp,
   resetPassword,
+  showResetPasswordForm,
+  changePassword,
   verifyOtp,
   resendOtp,
   googleCallback,
@@ -22,7 +25,10 @@ router.post("/resend-otp", resendOtp);
 router.post("/login", userLogin);
 router.post("/refresh", refreshToken);
 router.post("/forgot-password", forgotPassword);
+router.post("/verify-forgot-otp", verifyForgotOtp);
+router.get("/reset-password", showResetPasswordForm);
 router.post("/reset-password", resetPassword);
+router.post("/change-password", protect, changePassword);
 router.get("/me", protect, getMe);
 
 // Mobile Google OAuth — receives user info from expo-auth-session

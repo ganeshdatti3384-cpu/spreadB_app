@@ -2,7 +2,7 @@ import User from "../model/users.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { sendEmail } from "../utils/sendEmail.js";
-import { otpEmailTemplate, forgotPasswordTemplate } from "../utils/emailTemplates.js";
+import { otpEmailTemplate, forgotPasswordTemplate, forgotPasswordOtpTemplate } from "../utils/emailTemplates.js";
 import { InfluencerProfile } from "../model/profile.js";
 
 
@@ -248,35 +248,312 @@ const userLogin = async (req, res) => {
   }
 };
 
-// ✅ Forgot Password (unchanged)
+// ✅ Forgot Password (OTP Based)
 const forgotPassword = async (req, res) => {
   const { email } = req.body;
   try {
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const resetToken = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_SECRET || "secret123",
-      { expiresIn: "1h" }
-    );
+    const otp = generateOTP();
+    const hashedOtp = await hashOtp(otp);
+    user.otp = hashedOtp;
+    user.otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
+    await user.save();
 
-    // Support both web and mobile deep link
-    const webResetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-    const mobileResetLink = `spreadb://reset-password?token=${resetToken}`;
+    try {
+      await sendEmail(user.email, "Password Reset OTP - SpreadB", forgotPasswordOtpTemplate(user.firstName, otp));
+    } catch (emailError) {
+      console.error("Email sending failed:", emailError.message);
+    }
 
-    const emailHtml = forgotPasswordTemplate(user.firstName, webResetLink, mobileResetLink);
-    await sendEmail(email, "Password Reset Request - SpreadB", emailHtml);
-
-    return res.json({ message: "Password reset link sent to your email" });
+    return res.json({ message: "Verification OTP sent to your email" });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
 
-// ✅ Reset Password (same)
-const resetPassword = async (req, res) => {
+// ✅ Verify Forgot Password OTP
+const verifyForgotOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user.otp) return res.status(400).json({ message: "No OTP found. Please request a new one." });
+    if (user.otpExpires < Date.now())
+      return res.status(400).json({ message: "OTP has expired. Please request a new one." });
+
+    const isOtpValid = await bcrypt.compare(otp, user.otp);
+    if (!isOtpValid)
+      return res.status(400).json({ message: "Invalid OTP. Please check and try again." });
+
+    // Clear OTP
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    await user.save();
+
+    // Generate secure, short-lived reset token (15 mins)
+    const resetToken = jwt.sign(
+      { userId: user._id, type: 'password-reset-verified' },
+      process.env.JWT_SECRET || "secret123",
+      { expiresIn: "15m" }
+    );
+
+    return res.json({
+      message: "OTP verified successfully",
+      token: resetToken,
+    });
+  } catch (err) {
+    console.error("Verify forgot password OTP error:", err.message);
+    return res.status(500).json({ message: "Verification failed. Please try again." });
+  }
+};
+
+
+// ✅ Show Reset Password HTML Form (Web Page Rendered by Backend)
+const showResetPasswordForm = async (req, res) => {
   const { token } = req.query;
+  if (!token) return res.status(400).send("<h1>Token is required to reset password</h1>");
+
+  try {
+    jwt.verify(token, process.env.JWT_SECRET || "secret123");
+
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Reset Password - SpreadB</title>
+        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+        <style>
+          body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, #0A2010 0%, #0D3015 50%, #0A1628 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            color: #FFFFFF;
+          }
+          .card {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            padding: 40px;
+            border-radius: 20px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            text-align: center;
+          }
+          h1 {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 8px;
+            color: #14A800;
+          }
+          p {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 30px;
+          }
+          .form-group {
+            text-align: left;
+            margin-bottom: 20px;
+          }
+          label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.6);
+          }
+          input {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 10px;
+            border: 1.5px solid rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.05);
+            color: #FFFFFF;
+            font-size: 15px;
+            box-sizing: border-box;
+            transition: all 0.2s ease;
+          }
+          input:focus {
+            outline: none;
+            border-color: #14A800;
+            background: rgba(255, 255, 255, 0.08);
+          }
+          .btn {
+            width: 100%;
+            padding: 14px;
+            background: #14A800;
+            color: #FFFFFF;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            margin-top: 10px;
+          }
+          .btn:hover {
+            background: #118C00;
+          }
+          .error-msg {
+            color: #EF4444;
+            font-size: 13px;
+            margin-top: 8px;
+            display: none;
+          }
+          .success-msg {
+            color: #10B981;
+            font-size: 16px;
+            font-weight: 600;
+            display: none;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="card" id="card">
+          <div id="form-container">
+            <h1>Reset Password</h1>
+            <p>Enter your new password below to update your account.</p>
+            <form id="resetForm">
+              <div class="form-group">
+                <label for="password">New Password</label>
+                <input type="password" id="password" required placeholder="Minimum 8 characters">
+              </div>
+              <div class="form-group">
+                <label for="confirmPassword">Confirm Password</label>
+                <input type="password" id="confirmPassword" required placeholder="Re-enter password">
+              </div>
+              <div class="error-msg" id="error">Passwords do not match.</div>
+              <button type="submit" class="btn" id="submitBtn">Update Password</button>
+            </form>
+          </div>
+          <div class="success-msg" id="success">
+            <h2>Success!</h2>
+            <p>Your password has been successfully reset.</p>
+            <p>You can now close this tab and log in using your new password in the SpreadB app.</p>
+          </div>
+        </div>
+
+        <script>
+          const form = document.getElementById('resetForm');
+          const passwordInput = document.getElementById('password');
+          const confirmPasswordInput = document.getElementById('confirmPassword');
+          const errorDiv = document.getElementById('error');
+          const formContainer = document.getElementById('form-container');
+          const successDiv = document.getElementById('success');
+          const submitBtn = document.getElementById('submitBtn');
+
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorDiv.style.display = 'none';
+
+            const password = passwordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
+
+            if (password !== confirmPassword) {
+              errorDiv.textContent = 'Passwords do not match.';
+              errorDiv.style.display = 'block';
+              return;
+            }
+
+            if (password.length < 8) {
+              errorDiv.textContent = 'Password must be at least 8 characters long.';
+              errorDiv.style.display = 'block';
+              return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Updating...';
+
+            try {
+              const response = await fetch('/api/auth/reset-password?token=${token}', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ password, confirmPassword })
+              });
+
+              const result = await response.json();
+              if (response.ok) {
+                formContainer.style.display = 'none';
+                successDiv.style.display = 'block';
+              } else {
+                errorDiv.textContent = result.message || 'Failed to reset password.';
+                errorDiv.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Update Password';
+              }
+            } catch (err) {
+              errorDiv.textContent = 'An error occurred. Please try again.';
+              errorDiv.style.display = 'block';
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Update Password';
+            }
+          });
+        </script>
+      </body>
+      </html>
+    `);
+  } catch (err) {
+    res.status(400).send("<h1>Invalid or expired token link. Please request a new password reset link.</h1>");
+  }
+};
+
+// ✅ Change Password for Logged-In Users
+const changePassword = async (req, res) => {
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+  const userId = req.user.id;
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    return res.status(400).json({ message: "All fields are required" });
+  }
+
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({ message: "New passwords do not match" });
+  }
+
+  // Validate password strength
+  const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[\\W_]).{8,}$/;
+  if (!strongPasswordRegex.test(newPassword)) {
+    return res.status(400).json({
+      message: "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
+    });
+  }
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Incorrect current password" });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    return res.status(200).json({ success: true, message: "Password updated successfully" });
+  } catch (err) {
+    console.error("Change password error:", err.message);
+    return res.status(500).json({ message: "Failed to change password" });
+  }
+};
+
+// ✅ Reset Password
+const resetPassword = async (req, res) => {
+  const token = req.query.token || req.body.token || req.headers.authorization?.split(" ")[1];
   const { password, confirmPassword } = req.body;
 
   if (!token) return res.status(400).json({ message: "Token required" });
@@ -284,16 +561,22 @@ const resetPassword = async (req, res) => {
     return res.status(400).json({ message: "Passwords do not match" });
 
   // Strong password validation
-    const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
-    if (!strongPasswordRegex.test(password)) {
-      return res.status(400).json({
-        message:
-          "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
-      });
-    }
+  const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+  if (!strongPasswordRegex.test(password)) {
+    return res.status(400).json({
+      message:
+        "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
+    });
+  }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "secret123");
+    
+    // Verify token type for password reset security
+    if (decoded.type !== 'password-reset-verified') {
+      return res.status(400).json({ message: "Invalid token type for password reset" });
+    }
+
     const user = await User.findById(decoded.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -443,7 +726,10 @@ export {
   verifyOtp,
   userLogin,
   forgotPassword,
+  verifyForgotOtp,
   resetPassword,
+  showResetPasswordForm,
+  changePassword,
   refreshToken,
   resendOtp,
   googleCallback,

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, Modal, TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES } from '../../theme/colors';
@@ -51,6 +51,8 @@ export default function PromotionDetailScreen({ route, navigation }) {
   const [activeTab, setActiveTab] = useState('Overview');
   const [chatLoading, setChatLoading] = useState(false);
   const [brandOwnerId, setBrandOwnerId] = useState(null);
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [boostSticksInput, setBoostSticksInput] = useState('0');
 
   const load = useCallback(async () => {
     try {
@@ -99,31 +101,35 @@ export default function PromotionDetailScreen({ route, navigation }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleApply = async () => {
+  const handleApply = () => {
     if (hasApplied) return;
-    Alert.alert(
-      'Apply for Campaign',
-      `Apply for "${promotion?.title}"? This will use ${promotion?.requiredSticks || 0} sticks.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Apply', onPress: async () => {
-            setApplying(true);
-            try {
-              await applyForPromotion({ campaignId: id });
-              setHasApplied(true);
-              Alert.alert('Success', 'Application submitted successfully!');
-              load(); // Reload to get updated data
-            } catch (e) {
-              const msg = e.response?.data?.message || 'Failed to apply. Please try again.';
-              Alert.alert('Error', msg);
-            } finally {
-              setApplying(false);
-            }
-          }
-        },
-      ]
-    );
+    setBoostSticksInput('0');
+    setShowApplyModal(true);
+  };
+
+  const submitApplication = async () => {
+    const boostSticks = parseInt(boostSticksInput) || 0;
+    const requiredSticks = promotion?.requiredSticks || 0;
+    const totalSticks = requiredSticks + boostSticks;
+
+    if (sticksBalance !== null && sticksBalance < totalSticks) {
+      Alert.alert('Error', `You need ${totalSticks} sticks but only have ${sticksBalance}.`);
+      return;
+    }
+
+    setApplying(true);
+    setShowApplyModal(false);
+    try {
+      await applyForPromotion({ campaignId: id, boostSticks });
+      setHasApplied(true);
+      Alert.alert('Success', 'Application submitted successfully!');
+      load(); // Reload to get updated data
+    } catch (e) {
+      const msg = e.response?.data?.message || 'Failed to apply. Please try again.';
+      Alert.alert('Error', msg);
+    } finally {
+      setApplying(false);
+    }
   };
 
   const handleStartChat = async () => {
@@ -459,7 +465,14 @@ export default function PromotionDetailScreen({ route, navigation }) {
                     <Text style={styles.applicantAvatarText}>{initials}</Text>
                   </View>
                   <View style={styles.applicantInfo}>
-                    <Text style={styles.applicantName}>{fullName}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.applicantName}>{fullName}</Text>
+                      {app.boostSticks > 0 && (
+                        <View style={styles.boostPill}>
+                          <Text style={styles.boostPillText}>⚡ Boosted ({app.boostSticks})</Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.applicantEmail}>{app.email || app.influencer?.email || ''}</Text>
                   </View>
                   <View style={[styles.appStatusBadge, {
@@ -538,6 +551,92 @@ export default function PromotionDetailScreen({ route, navigation }) {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Apply Campaign with Boost modal */}
+      <Modal
+        visible={showApplyModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowApplyModal(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setShowApplyModal(false)}
+        >
+          <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Apply for Campaign</Text>
+              <TouchableOpacity onPress={() => setShowApplyModal(false)}>
+                <Ionicons name="close" size={24} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalDesc}>
+                Applying to "{promotion?.title}" will spend sticks from your balance.
+              </Text>
+
+              <View style={styles.modalInfoCard}>
+                <View style={styles.modalInfoRow}>
+                  <Text style={styles.modalInfoLabel}>Required Sticks</Text>
+                  <Text style={styles.modalInfoVal}>{promotion?.requiredSticks || 0} sticks</Text>
+                </View>
+                <View style={styles.modalInfoRow}>
+                  <Text style={styles.modalInfoLabel}>Your Balance</Text>
+                  <Text style={[styles.modalInfoVal, { color: sticksOk ? COLORS.primary : COLORS.error }]}>
+                    {sticksBalance} sticks
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.boostTitle}>🚀 Boost Your Application (Optional)</Text>
+              <Text style={styles.boostSub}>
+                Spend additional sticks to push your application to the top of the brand owner's list. Higher boost appears first.
+              </Text>
+
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.boostInput}
+                  keyboardType="numeric"
+                  value={boostSticksInput}
+                  onChangeText={(val) => {
+                    const clean = val.replace(/[^0-9]/g, '');
+                    setBoostSticksInput(clean);
+                  }}
+                  placeholder="0"
+                />
+                <Text style={styles.inputSuffix}>sticks</Text>
+              </View>
+
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryText}>
+                  Total Cost: <Text style={{ fontWeight: 'bold' }}>{(promotion?.requiredSticks || 0) + (parseInt(boostSticksInput) || 0)} sticks</Text>
+                </Text>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity 
+                style={styles.modalCancelBtn} 
+                onPress={() => setShowApplyModal(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[
+                  styles.modalSubmitBtn, 
+                  (sticksBalance !== null && sticksBalance < ((promotion?.requiredSticks || 0) + (parseInt(boostSticksInput) || 0))) && styles.modalSubmitDisabled
+                ]} 
+                onPress={submitApplication}
+                disabled={sticksBalance !== null && sticksBalance < ((promotion?.requiredSticks || 0) + (parseInt(boostSticksInput) || 0))}
+              >
+                <Text style={styles.modalSubmitText}>Apply Now</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -685,4 +784,158 @@ const styles = StyleSheet.create({
   bottomBtnApplied: { backgroundColor: COLORS.primaryDark },
   bottomBtnDisabled: { backgroundColor: COLORS.textLight, opacity: 0.6 },
   bottomBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 15 },
+
+  // Boost Modal & Pill styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: SIZES.radiusLg * 2,
+    borderTopRightRadius: SIZES.radiusLg * 2,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  modalBody: {
+    paddingVertical: 15,
+  },
+  modalDesc: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  modalInfoCard: {
+    backgroundColor: COLORS.background,
+    borderRadius: SIZES.radius,
+    padding: 14,
+    marginBottom: 20,
+    gap: 8,
+  },
+  modalInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalInfoLabel: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  modalInfoVal: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  boostTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 6,
+  },
+  boostSub: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: SIZES.radius,
+    paddingHorizontal: 12,
+    height: 48,
+    marginBottom: 20,
+  },
+  boostInput: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.text,
+    fontWeight: '600',
+    padding: 0,
+  },
+  inputSuffix: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+  },
+  summaryCard: {
+    backgroundColor: COLORS.primaryLight,
+    padding: 14,
+    borderRadius: SIZES.radius,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  summaryText: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 10,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: SIZES.radius,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  modalSubmitBtn: {
+    flex: 1,
+    height: 48,
+    backgroundColor: COLORS.primary,
+    borderRadius: SIZES.radius,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSubmitDisabled: {
+    backgroundColor: COLORS.textLight,
+    opacity: 0.6,
+  },
+  modalSubmitText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.white,
+  },
+  boostPill: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderWidth: 0.5,
+    borderColor: '#F59E0B',
+  },
+  boostPillText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#D97706',
+  },
 });

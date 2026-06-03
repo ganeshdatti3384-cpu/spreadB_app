@@ -1,6 +1,7 @@
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import Wallet from '../model/wallet_model.js';
+import { encryptPaymentPayload, decryptPaymentPayload } from '../utils/paymentEncryption.js';
 
 // Initialize Razorpay only if keys are provided
 let razorpay = null;
@@ -33,35 +34,18 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    // Check if Razorpay is configured and initialized
+    // Generate secure cryptographically encrypted payment token
+    const paymentToken = encryptPaymentPayload({
+      amount: Number(amount),
+      userId: userId.toString(),
+      timestamp: Date.now(),
+      type: 'wallet_recharge'
+    });
+
     if (!razorpay) {
-      // For testing: Add money directly without payment gateway
-      console.log('⚠️ Razorpay not configured, adding money directly for testing');
-      
-      let wallet = await Wallet.findOne({ userId });
-      
-      if (!wallet) {
-        wallet = new Wallet({ userId });
-      }
-
-      await wallet.addMoney(
-        amount,
-        `Added ₹${amount} (Test Mode - No Payment Gateway)`,
-        {
-          method: 'test',
-          gatewayId: `test_${Date.now()}`,
-          timestamp: new Date()
-        }
-      );
-
-      return res.status(200).json({
-        success: true,
-        message: `Successfully added ₹${amount} to wallet (Test Mode)`,
-        testMode: true,
-        wallet: {
-          balance: wallet.balance,
-          availableBalance: wallet.availableBalance
-        }
+      return res.status(500).json({
+        success: false,
+        message: 'Razorpay is not configured on the server'
       });
     }
 
@@ -85,10 +69,18 @@ export const createOrder = async (req, res) => {
         amount: order.amount,
         currency: order.currency,
         key_id: process.env.RAZORPAY_KEY_ID
-      }
+      },
+      paymentToken
     });
   } catch (error) {
     console.error('Create order error:', error);
+    if (error.statusCode === 401 || error.message?.includes('Authentication failed')) {
+      return res.status(401).json({
+        success: false,
+        message: "Razorpay authentication failed. Your RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET in the .env file is invalid or expired.",
+        error: error.message
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Failed to create payment order',
@@ -104,12 +96,62 @@ export const verifyPayment = async (req, res) => {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
-      amount
+      paymentToken
     } = req.body;
 
     const userId = req.user._id || req.user.id;
 
-    // Verify signature
+    if (!paymentToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Security verification failed: payment token is missing'
+      });
+    }
+
+    // Decrypt and verify payment token payload
+    let decryptedPayload;
+    try {
+      decryptedPayload = decryptPaymentPayload(paymentToken);
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        message: 'Security verification failed: invalid payment token'
+      });
+    }
+
+    // 1. Verify User ID
+    if (decryptedPayload.userId !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Security verification failed: user identity mismatch'
+      });
+    }
+
+    // 2. Verify Type
+    if (decryptedPayload.type !== 'wallet_recharge') {
+      return res.status(400).json({
+        success: false,
+        message: 'Security verification failed: invalid token type'
+      });
+    }
+
+    // 3. Verify Timestamp (Expiry window: 15 minutes)
+    const timeElapsed = Date.now() - decryptedPayload.timestamp;
+    if (timeElapsed > 15 * 60 * 1000 || timeElapsed < -5000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Security verification failed: payment token has expired'
+      });
+    }
+
+    // 4. Verify Razorpay signature strictly
+    if (!razorpay) {
+      return res.status(500).json({
+        success: false,
+        message: 'Razorpay is not configured on the server'
+      });
+    }
+
     const sign = razorpay_order_id + '|' + razorpay_payment_id;
     const expectedSign = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
@@ -123,6 +165,9 @@ export const verifyPayment = async (req, res) => {
       });
     }
 
+    // Trust ONLY the decrypted amount (prevent frontend tampering)
+    const verifiedAmount = decryptedPayload.amount;
+
     // Payment verified, add money to wallet
     let wallet = await Wallet.findOne({ userId });
     
@@ -131,8 +176,8 @@ export const verifyPayment = async (req, res) => {
     }
 
     await wallet.addMoney(
-      amount / 100, // Convert from paise to rupees
-      `Added ₹${amount / 100} via Razorpay`,
+      verifiedAmount,
+      `Added ₹${verifiedAmount} via Secure Razorpay`,
       {
         method: 'razorpay',
         gatewayId: razorpay_payment_id,
@@ -143,7 +188,7 @@ export const verifyPayment = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: `Successfully added ₹${amount / 100} to wallet`,
+      message: `Successfully added ₹${verifiedAmount} to wallet`,
       wallet: {
         balance: wallet.balance,
         availableBalance: wallet.availableBalance

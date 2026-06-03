@@ -3,6 +3,78 @@ import { InfluencerProfile, BrandOwnerProfile } from "../model/profile.js";
 import User from "../model/users.js";
 import path from "path";
 import fs from "fs";
+import CryptoJS from "crypto-js";
+
+// Decrypt and validate helper functions for E2EE messages
+const deriveSharedKey = (userId1, userId2) => {
+  if (!userId1 || !userId2) return "";
+  const id1 = String(userId1);
+  const id2 = String(userId2);
+  const sortedIds = [id1, id2].sort().join('_');
+  const salt = 'spreadb_secure_e2ee_salt_2026';
+  return CryptoJS.SHA256(sortedIds + salt).toString();
+};
+
+const decryptMessage = (ciphertext, key) => {
+  if (!ciphertext || !key) return ciphertext;
+  if (!ciphertext.startsWith('U2FsdGVkX1')) {
+    return ciphertext;
+  }
+  try {
+    const bytes = CryptoJS.AES.decrypt(ciphertext, key);
+    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+    if (!decrypted) return ciphertext;
+    return decrypted;
+  } catch (error) {
+    console.log('Decryption error:', error);
+    return ciphertext;
+  }
+};
+
+const convertWordsToDigits = (str) => {
+  if (!str) return '';
+  const wordMap = {
+    'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4',
+    'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9'
+  };
+  let processed = str.toLowerCase();
+  Object.keys(wordMap).forEach(word => {
+    const regex = new RegExp(`\\b${word}\\b`, 'g');
+    processed = processed.replace(regex, wordMap[word]);
+  });
+  return processed;
+};
+
+const containsRestrictedInfo = (text) => {
+  if (!text || typeof text !== 'string') return false;
+  
+  const processedText = convertWordsToDigits(text);
+
+  // Restrict email sharing
+  const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/i;
+  if (emailRegex.test(text) || emailRegex.test(processedText)) {
+    return true;
+  }
+
+  // Restrict phone number sharing
+  const phoneRegex = /(\+?\d{1,4}[-.\s]?)?\(?\d{3,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{4}/;
+  const cleanedDigits = text.replace(/[^0-9]/g, '');
+  const hasTenConsecutiveDigits = /\d{10,}/.test(cleanedDigits);
+
+  const processedCleanedDigits = processedText.replace(/[^0-9]/g, '');
+  const hasProcessedTenConsecutiveDigits = /\d{10,}/.test(processedCleanedDigits);
+
+  if (
+    phoneRegex.test(text) || 
+    hasTenConsecutiveDigits || 
+    phoneRegex.test(processedText) || 
+    hasProcessedTenConsecutiveDigits
+  ) {
+    return true;
+  }
+
+  return false;
+};
 
 // Get all conversations for a user
 export const getUserConversations = async (req, res) => {
@@ -256,6 +328,18 @@ export const sendMessage = async (req, res) => {
         });
       }
       
+      // Restrict email/phone sharing
+      if (messageType === "text" && content) {
+        const key = deriveSharedKey(senderId, actualReceiverId);
+        const decryptedText = decryptMessage(content, key);
+        if (containsRestrictedInfo(decryptedText)) {
+          return res.status(400).json({
+            success: false,
+            message: "Sharing email addresses or phone numbers is not allowed for security reasons."
+          });
+        }
+      }
+      
       // Handle file upload if present
       let fileUrl = null;
       let fileName = null;
@@ -427,6 +511,18 @@ export const sendMessage = async (req, res) => {
       fileSize = req.file.size;
     }
     
+    // Restrict email/phone sharing
+    if (messageType === "text" && content) {
+      const key = deriveSharedKey(senderId, receiverId);
+      const decryptedText = decryptMessage(content, key);
+      if (containsRestrictedInfo(decryptedText)) {
+        return res.status(400).json({
+          success: false,
+          message: "Sharing email addresses or phone numbers is not allowed for security reasons."
+        });
+      }
+    }
+
     // Create message
     const message = new Message({
       conversationId: conversation._id,

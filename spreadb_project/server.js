@@ -1,5 +1,5 @@
+import "dotenv/config";
 import express from "express";
-import dotenv from "dotenv";
 import  connectDB  from "./config/db.js";
 import auth_router from "./route/auth_router.js";
 import profile_router from "./route/profile_router.js"
@@ -18,7 +18,7 @@ import counting_router from "./route/counting_router.js";
 import sticks_router from "./route/sticks_router.js";  // 🆕 Add sticks router
 import wallet_router from "./route/wallet_router.js";  // 🆕 Add wallet router
 import payment_router from "./route/payment_router.js";  // 🆕 Add payment router
-dotenv.config();
+
 
 // 🔍 DEBUG: Log environment variables on startup
 console.log('=================================');
@@ -32,6 +32,11 @@ console.log('=================================');
 
 const app = express(); 
 app.use(express.json());
+
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`, req.body);
+  next();
+});
 
 app.use(
   cors({

@@ -38,8 +38,11 @@ import MyApplicationsScreen from '../screens/applications/MyApplicationsScreen';
 import ProposalsScreen from '../screens/applications/ProposalsScreen';
 import WalletScreen from '../screens/wallet/WalletScreen';
 import BankDetailsScreen from '../screens/wallet/BankDetailsScreen';
+import SticksPricingScreen from '../screens/wallet/SticksPricingScreen';
+import SecureCheckoutScreen from '../screens/wallet/SecureCheckoutScreen';
 import AgreementsScreen from '../screens/agreements/AgreementsScreen';
 import AgreementDetailScreen from '../screens/agreements/AgreementDetailScreen';
+import ChangePasswordScreen from '../screens/profile/ChangePasswordScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -115,8 +118,13 @@ function AppStack() {
       <Stack.Screen name="Proposals" component={ProposalsScreen} />
       <Stack.Screen name="Wallet" component={WalletScreen} />
       <Stack.Screen name="BankDetails" component={BankDetailsScreen} />
+      <Stack.Screen name="SticksPricing" component={SticksPricingScreen} />
+      <Stack.Screen name="SecureCheckout" component={SecureCheckoutScreen} />
       <Stack.Screen name="Agreements" component={AgreementsScreen} />
       <Stack.Screen name="AgreementDetail" component={AgreementDetailScreen} />
+      <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+      <Stack.Screen name="CreateInfluencerProfile" component={CreateInfluencerProfileScreen} />
+      <Stack.Screen name="CreateBrandProfile" component={CreateBrandProfileScreen} />
     </Stack.Navigator>
   );
 }

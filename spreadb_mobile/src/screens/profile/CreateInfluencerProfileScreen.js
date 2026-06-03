@@ -6,8 +6,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS, SIZES } from '../../theme/colors';
-import { createInfluencerProfile } from '../../api/profile';
+import { createInfluencerProfile, getInfluencerProfile, updateInfluencerProfile } from '../../api/profile';
 import { useAuth } from '../../context/AuthContext';
+import { BASE_URL } from '../../api/config';
 
 const CATEGORIES = [
   'Fashion', 'Beauty', 'Tech', 'Food', 'Travel',
@@ -72,6 +73,9 @@ export default function CreateInfluencerProfileScreen({ navigation }) {
   const { refreshUser } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [photo, setPhoto] = useState(null);
+  const [isEdit, setIsEdit] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [existingPhotoUrl, setExistingPhotoUrl] = useState(null);
 
   const [form, setForm] = useState({
     firstName: '',
@@ -90,6 +94,42 @@ export default function CreateInfluencerProfileScreen({ navigation }) {
   });
 
   const update = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
+
+  React.useEffect(() => {
+    const loadExisting = async () => {
+      try {
+        const res = await getInfluencerProfile();
+        const profile = res.data?.profile || res.data;
+        if (profile) {
+          setIsEdit(true);
+          setForm({
+            firstName: profile.firstName || '',
+            lastName: profile.lastName || '',
+            userName: profile.userName || '',
+            phone: profile.phoneNumber || profile.phone || '',
+            about: profile.about || '',
+            category: profile.category || [],
+            locations: profile.locations || [],
+            instagramUrl: profile.socialMedia?.instagram?.link || profile.socialMedia?.instagram?.url || '',
+            instagramFollowers: profile.socialMedia?.instagram?.followers?.toString() || '',
+            youtubeUrl: profile.socialMedia?.youtube?.link || profile.socialMedia?.youtube?.url || '',
+            youtubeSubscribers: profile.socialMedia?.youtube?.subscribers?.toString() || '',
+            twitterUrl: profile.socialMedia?.twitter?.link || profile.socialMedia?.twitter?.url || '',
+            twitterFollowers: profile.socialMedia?.twitter?.followers?.toString() || '',
+          });
+          if (profile.profilePhoto) {
+            setExistingPhotoUrl(`${BASE_URL}/${profile.profilePhoto}`);
+          }
+        }
+      } catch (e) {
+        console.log('Load existing profile error:', e);
+        setIsEdit(false);
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+    loadExisting();
+  }, []);
 
   const toggleCategory = (cat) => {
     update('category', form.category.includes(cat)
@@ -196,17 +236,29 @@ export default function CreateInfluencerProfileScreen({ navigation }) {
         formData.append('profilePhoto', { uri: photo.uri, name: filename, type });
       }
 
-      await createInfluencerProfile(formData);
+      if (isEdit) {
+        await updateInfluencerProfile(formData);
+      } else {
+        await createInfluencerProfile(formData);
+      }
       await refreshUser();
-      Alert.alert('Success', 'Profile created successfully!', [
+      Alert.alert('Success', isEdit ? 'Profile updated successfully!' : 'Profile created successfully!', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (e) {
-      Alert.alert('Error', e.response?.data?.message || 'Failed to create profile. Please try again.');
+      Alert.alert('Error', e.response?.data?.message || 'Failed to save profile. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (loadingProfile) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -218,7 +270,7 @@ export default function CreateInfluencerProfileScreen({ navigation }) {
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Profile</Text>
+        <Text style={styles.headerTitle}>{isEdit ? 'Edit Profile' : 'Create Profile'}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -233,6 +285,8 @@ export default function CreateInfluencerProfileScreen({ navigation }) {
           <TouchableOpacity style={styles.photoPicker} onPress={pickPhoto} activeOpacity={0.8}>
             {photo ? (
               <Image source={{ uri: photo.uri }} style={styles.photoImage} />
+            ) : existingPhotoUrl ? (
+              <Image source={{ uri: existingPhotoUrl }} style={styles.photoImage} />
             ) : (
               <View style={styles.photoPlaceholder}>
                 <Ionicons name="camera-outline" size={32} color={COLORS.textLight} />
@@ -377,7 +431,7 @@ export default function CreateInfluencerProfileScreen({ navigation }) {
           {submitting ? (
             <ActivityIndicator size="small" color={COLORS.white} />
           ) : (
-            <Text style={styles.submitBtnText}>Create Profile</Text>
+            <Text style={styles.submitBtnText}>{isEdit ? 'Update Profile' : 'Create Profile'}</Text>
           )}
         </TouchableOpacity>
 
@@ -389,6 +443,7 @@ export default function CreateInfluencerProfileScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.background },
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

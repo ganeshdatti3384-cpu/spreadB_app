@@ -21,3 +21,12 @@ export const updateBankDetails = (data) => api.post('/api/wallet/bank-details', 
 // Backend: GET /api/wallet/check-balance
 export const checkBalance = (amount) =>
   api.get('/api/wallet/check-balance', { params: { amount } });
+
+// Secure payments (wallet additions)
+export const createWalletOrder = (data) => api.post('/api/payment/create-order', data);
+export const verifyWalletPayment = (data) => api.post('/api/payment/verify', data);
+
+// Secure sticks purchase
+export const getSticksPricing = () => api.get('/api/sticks/pricing');
+export const createSticksOrder = (data) => api.post('/api/sticks/create-order', data);
+export const verifySticksPayment = (data) => api.post('/api/sticks/verify-payment', data);

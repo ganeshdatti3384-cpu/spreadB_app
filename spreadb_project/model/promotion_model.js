@@ -116,6 +116,7 @@ const applicationSchema = new mongoose.Schema(
 
     notes: { type: String },
     sticksSpent: { type: Number, default: 0 },
+    boostSticks: { type: Number, default: 0 },
 
     // Application details
     proposal: { type: String },

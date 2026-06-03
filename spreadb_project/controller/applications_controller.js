@@ -37,6 +37,38 @@ export const reviewApplication = async (req, res) => {
       application.notes = notes || "";
       await application.save();
 
+      // Refund sticks to the influencer
+      const influencer = await InfluencerProfile.findOne({ userId: application.influencerId._id });
+      if (influencer) {
+        if (!influencer.sticks) {
+          influencer.sticks = { free: 0, purchased: 0, total: 0, spent: 0, transactions: [] };
+        }
+        influencer.sticks.total = (influencer.sticks.total || 0) + application.sticksSpent;
+        influencer.sticks.spent = Math.max(0, (influencer.sticks.spent || 0) - application.sticksSpent);
+        
+        // Add refund transaction record
+        influencer.sticks.transactions.push({
+          type: "earned",
+          amount: application.sticksSpent,
+          description: `Refund: Application rejected for promotion: ${promotion.title}`,
+          date: new Date(),
+        });
+
+        // Legacy system update
+        if (influencer.reports) {
+          influencer.reports.availableSticks = (influencer.reports.availableSticks || 0) + application.sticksSpent;
+          if (!influencer.reports.sticksHistory) {
+            influencer.reports.sticksHistory = [];
+          }
+          influencer.reports.sticksHistory.push({
+            action: `Refund: Rejected Application (${promotion.title})`,
+            amount: application.sticksSpent,
+            date: new Date(),
+          });
+        }
+        await influencer.save();
+      }
+
       await Notification.create({
         userId: application.influencerId._id,
         message: ` Your application for ${promotion.title} was rejected.`,

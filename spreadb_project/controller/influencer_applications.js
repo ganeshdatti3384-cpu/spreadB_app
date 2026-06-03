@@ -105,6 +105,7 @@ export const applyForPromotion = async (req, res) => {
       campaignId,
       influencerId: userId,
       sticksSpent: totalSticksRequired,
+      boostSticks: additionalBoostSticks,
       proposal: proposal || '',
       estimatedDelivery: estimatedDelivery || null
     });
