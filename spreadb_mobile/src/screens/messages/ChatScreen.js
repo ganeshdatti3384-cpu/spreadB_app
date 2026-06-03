@@ -2,18 +2,26 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
-  Image, Modal, ScrollView, Dimensions, StatusBar, Keyboard,
+  Image, Modal, ScrollView, Dimensions, StatusBar, Keyboard, Linking, Animated,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as Clipboard from 'expo-clipboard';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as Location from 'expo-location';
+import { useAudioPlayer, useAudioPlayerStatus, useAudioRecorder, RecordingPresets, setAudioModeAsync, requestRecordingPermissionsAsync } from 'expo-audio';
+import { useEventListener } from 'expo';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { COLORS, SIZES } from '../../theme/colors';
 import { useAuth } from '../../context/AuthContext';
 import { getMessages, sendMessage, sendFileMessage, editMessage, deleteMessage } from '../../api/messages';
 import { BASE_URL } from '../../api/config';
 import { deriveSharedKey, encryptMessage, decryptMessage } from '../../utils/e2ee';
+import { getParticipantNameFromConversation } from '../../utils/nameExtractor';
 
 const { width, height } = Dimensions.get('window');
 
@@ -74,6 +82,9 @@ function groupMessagesByDate(messages) {
 export default function ChatScreen({ route, navigation }) {
   const { conversationId, participantName, campaignName } = route.params || {};
   const { user } = useAuth();
+  const isInfluencer = user?.role === 'Influencer';
+  const resolvedParticipantName = participantName || 
+    (conversation ? getParticipantNameFromConversation(conversation, user?._id) : 'Chat');
   const insets = useSafeAreaInsets();
 
   const [messages, setMessages] = useState([]);
@@ -94,9 +105,45 @@ export default function ChatScreen({ route, navigation }) {
   // Selection states
   const [selectedMessages, setSelectedMessages] = useState([]);
 
+  // Voice recording states
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  
+  // Video player modal
+  const [videoPlayerUri, setVideoPlayerUri] = useState(null);
+  
+  // Audio playback state
+  const [playingAudioId, setPlayingAudioId] = useState(null);
+  const [audioProgress, setAudioProgress] = useState(0);
+
   const flatListRef = useRef(null);
   const pollRef = useRef(null);
   const sharedKeyRef = useRef('');
+  const recordingRef = useRef(null);
+  const recordingTimerRef = useRef(null);
+  const soundRef = useRef(null);
+  const recordingPulse = useRef(new Animated.Value(1)).current;
+
+  // New audio/video player hooks
+  const audioPlayer = useAudioPlayer({ uri: '' }, { updateInterval: 100 });
+  const audioPlayerStatus = useAudioPlayerStatus(audioPlayer);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const videoPlayer = useVideoPlayer('');
+
+  // Audio playback completion listener
+  useEventListener(audioPlayer, 'playToEnd', () => {
+    setPlayingAudioId(null);
+  });
+
+  // Video URL state synchronization
+  useEffect(() => {
+    if (videoPlayerUri) {
+      videoPlayer.replace(videoPlayerUri);
+      videoPlayer.play();
+    } else {
+      videoPlayer.pause();
+    }
+  }, [videoPlayerUri, videoPlayer]);
 
   const getImageUrl = (fileUrl) => {
     if (!fileUrl) return '';
@@ -352,24 +399,32 @@ export default function ChatScreen({ route, navigation }) {
   };
 
   const handlePickImage = async () => {
+    setAttachModalVisible(false);
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'We need access to your photos to send images.');
+      Alert.alert('Permission Denied', 'We need access to your photos to send media.');
       return;
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
       allowsEditing: true,
       quality: 0.8,
+      videoMaxDuration: 120,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      handleSendFile(result.assets[0]);
+      const asset = result.assets[0];
+      if (asset.type === 'video') {
+        handleSendVideoFile(asset);
+      } else {
+        handleSendFile(asset);
+      }
     }
   };
 
   const handleTakePhoto = async () => {
+    setAttachModalVisible(false);
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission Denied', 'We need access to your camera to take photos.');
@@ -385,6 +440,327 @@ export default function ChatScreen({ route, navigation }) {
       handleSendFile(result.assets[0]);
     }
   };
+
+  // ── Send Video File ──
+  const handleSendVideoFile = async (videoAsset) => {
+    setSending(true);
+    const tempId = `temp-${Date.now()}`;
+    const optimistic = {
+      _id: tempId,
+      messageType: 'video',
+      fileUrl: videoAsset.uri,
+      sender: user?._id,
+      senderId: user?._id,
+      createdAt: new Date().toISOString(),
+      duration: videoAsset.duration ? Math.round(videoAsset.duration / 1000) : 0,
+      pending: true,
+    };
+    setMessages((prev) => [...prev, optimistic]);
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+
+    try {
+      const formData = new FormData();
+      formData.append('conversationId', conversationId);
+      formData.append('messageType', 'video');
+      if (videoAsset.duration) formData.append('duration', String(Math.round(videoAsset.duration / 1000)));
+      if (conversation?.relatedPromotion?._id) {
+        formData.append('relatedPromotion', conversation.relatedPromotion._id);
+      }
+      const uri = videoAsset.uri;
+      const uriParts = uri.split('.');
+      const ext = uriParts[uriParts.length - 1] || 'mp4';
+      formData.append('file', {
+        uri, name: `video-${Date.now()}.${ext}`, type: `video/${ext === 'mov' ? 'quicktime' : 'mp4'}`,
+      });
+      await sendFileMessage(formData);
+      await load(true);
+    } catch (e) {
+      console.log('Send video error:', e.response?.data || e.message);
+      setMessages((prev) => prev.filter((m) => m._id !== tempId));
+      Alert.alert('Error', 'Failed to send video. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // ── Pick Document ──
+  const handlePickDocument = async () => {
+    setAttachModalVisible(false);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          'text/plain', 'text/csv', 'application/zip'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+      const doc = result.assets[0];
+      setSending(true);
+      const tempId = `temp-${Date.now()}`;
+      const optimistic = {
+        _id: tempId, messageType: 'document', fileName: doc.name,
+        fileSize: doc.size, sender: user?._id, senderId: user?._id,
+        createdAt: new Date().toISOString(), pending: true,
+      };
+      setMessages((prev) => [...prev, optimistic]);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+
+      const formData = new FormData();
+      formData.append('conversationId', conversationId);
+      formData.append('messageType', 'document');
+      if (conversation?.relatedPromotion?._id) {
+        formData.append('relatedPromotion', conversation.relatedPromotion._id);
+      }
+      formData.append('file', {
+        uri: doc.uri, name: doc.name, type: doc.mimeType || 'application/octet-stream',
+      });
+
+      await sendFileMessage(formData);
+      await load(true);
+    } catch (e) {
+      console.log('Send document error:', e);
+      Alert.alert('Error', 'Failed to send document.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // ── Voice Recording ──
+  const startRecording = async () => {
+    setAttachModalVisible(false);
+    try {
+      const { granted } = await requestRecordingPermissionsAsync();
+      if (!granted) {
+        Alert.alert('Permission Denied', 'We need microphone access to record voice notes.');
+        return;
+      }
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+      await recorder.prepareToRecordAsync();
+      await recorder.record();
+      setIsRecording(true);
+      setRecordingDuration(0);
+
+      // Start timer
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration((d) => {
+          if (d >= 120) { // 2 min max
+            stopRecording();
+            return d;
+          }
+          return d + 1;
+        });
+      }, 1000);
+
+      // Pulse animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(recordingPulse, { toValue: 1.3, duration: 600, useNativeDriver: true }),
+          Animated.timing(recordingPulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ])
+      ).start();
+    } catch (e) {
+      console.log('Start recording error:', e);
+      Alert.alert('Error', 'Failed to start recording.');
+    }
+  };
+
+  const cancelRecording = async () => {
+    clearInterval(recordingTimerRef.current);
+    recordingPulse.stopAnimation();
+    recordingPulse.setValue(1);
+    setIsRecording(false);
+    setRecordingDuration(0);
+    try {
+      await recorder.stop();
+    } catch (e) { console.log('Cancel recording:', e); }
+  };
+
+  const stopRecording = async () => {
+    clearInterval(recordingTimerRef.current);
+    recordingPulse.stopAnimation();
+    recordingPulse.setValue(1);
+    setIsRecording(false);
+
+    try {
+      let uri = await recorder.stop();
+      if (!uri) {
+        uri = recorder.uri;
+      }
+      const duration = recordingDuration;
+      setRecordingDuration(0);
+
+      if (!uri || duration < 1) {
+        Alert.alert('Too Short', 'Recording must be at least 1 second.');
+        return;
+      }
+
+      await setAudioModeAsync({ allowsRecording: false });
+
+      setSending(true);
+      const tempId = `temp-${Date.now()}`;
+      const optimistic = {
+        _id: tempId, messageType: 'audio', fileUrl: uri,
+        duration, sender: user?._id, senderId: user?._id,
+        createdAt: new Date().toISOString(), pending: true,
+      };
+      setMessages((prev) => [...prev, optimistic]);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+
+      const formData = new FormData();
+      formData.append('conversationId', conversationId);
+      formData.append('messageType', 'audio');
+      formData.append('duration', String(duration));
+      if (conversation?.relatedPromotion?._id) {
+        formData.append('relatedPromotion', conversation.relatedPromotion._id);
+      }
+      formData.append('file', {
+        uri, name: `voice-${Date.now()}.m4a`, type: 'audio/m4a',
+      });
+
+      await sendFileMessage(formData);
+      await load(true);
+    } catch (e) {
+      console.log('Send voice note error:', e);
+      Alert.alert('Error', 'Failed to send voice note.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // ── Audio Playback ──
+  const handlePlayAudio = async (item) => {
+    try {
+      const url = getImageUrl(item.fileUrl);
+
+      // If same audio, toggle play/pause
+      if (playingAudioId === item._id) {
+        if (audioPlayerStatus.playing) {
+          audioPlayer.pause();
+        } else {
+          audioPlayer.play();
+        }
+        return;
+      }
+
+      setPlayingAudioId(item._id);
+      await audioPlayer.replace({ uri: url }, true);
+    } catch (e) {
+      console.log('Audio play error:', e);
+    }
+  };
+
+  // ── Share Location ──
+  const handleShareLocation = async () => {
+    setAttachModalVisible(false);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'We need location access to share your location.');
+        return;
+      }
+
+      setSending(true);
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      let address = '';
+      try {
+        const [geo] = await Location.reverseGeocodeAsync({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
+        if (geo) {
+          address = [geo.name, geo.street, geo.city, geo.region].filter(Boolean).join(', ');
+        }
+      } catch (geoErr) {
+        console.log('Geocode error:', geoErr);
+      }
+
+      const tempId = `temp-${Date.now()}`;
+      const optimistic = {
+        _id: tempId, messageType: 'location',
+        location: { latitude: loc.coords.latitude, longitude: loc.coords.longitude, address },
+        sender: user?._id, senderId: user?._id,
+        createdAt: new Date().toISOString(), pending: true,
+      };
+      setMessages((prev) => [...prev, optimistic]);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+
+      await sendMessage({
+        conversationId,
+        messageType: 'location',
+        location: { latitude: loc.coords.latitude, longitude: loc.coords.longitude, address },
+        relatedPromotion: conversation?.relatedPromotion?._id,
+      });
+      await load(true);
+    } catch (e) {
+      console.log('Location share error:', e);
+      Alert.alert('Error', 'Failed to share location.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // ── File Download ──
+  const handleDownloadFile = async (fileUrl, fileName) => {
+    try {
+      const url = getImageUrl(fileUrl);
+      const downloadName = fileName || `file-${Date.now()}`;
+      const fileUri = FileSystem.cacheDirectory + downloadName;
+
+      Alert.alert('Downloading...', fileName || 'File', [{ text: 'OK' }]);
+      const { uri } = await FileSystem.downloadAsync(url, fileUri);
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri);
+      } else {
+        Alert.alert('Downloaded', `File saved to ${uri}`);
+      }
+    } catch (e) {
+      console.log('Download error:', e);
+      Alert.alert('Error', 'Failed to download file.');
+    }
+  };
+
+  // ── Helper: Format file size ──
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // ── Helper: Format recording time ──
+  const formatRecordTime = (secs) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  // ── Helper: Get document icon ──
+  const getDocIcon = (name) => {
+    if (!name) return 'document-outline';
+    const ext = name.split('.').pop()?.toLowerCase();
+    if (ext === 'pdf') return 'document-text';
+    if (['doc', 'docx'].includes(ext)) return 'document-text-outline';
+    if (['xls', 'xlsx', 'csv'].includes(ext)) return 'grid-outline';
+    if (['ppt', 'pptx'].includes(ext)) return 'easel-outline';
+    if (['zip', 'rar'].includes(ext)) return 'archive-outline';
+    return 'document-outline';
+  };
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      clearInterval(recordingTimerRef.current);
+    };
+  }, []);
 
   // Selection toggle logic
   const isSelected = (id) => selectedMessages.some((m) => m._id === id);
@@ -524,7 +900,7 @@ export default function ChatScreen({ route, navigation }) {
     
     const senderName = isMine 
       ? (user?.firstName || user?.email?.split('@')[0] || 'You')
-      : participantName || 'User';
+      : resolvedParticipantName || 'User';
 
     return (
       <TouchableOpacity
@@ -553,14 +929,131 @@ export default function ChatScreen({ route, navigation }) {
             styles.bubble,
             isMine ? styles.bubbleMine : styles.bubbleOther,
             item.pending && styles.bubblePending,
-            item.messageType === 'image' && styles.bubbleImage,
+            (item.messageType === 'image' || item.messageType === 'video') && styles.bubbleImage,
           ]}>
+            {/* ── IMAGE ── */}
             {item.messageType === 'image' ? (
               <Image
                 source={{ uri: getImageUrl(item.fileUrl) }}
                 style={styles.messageImage}
                 resizeMode="cover"
               />
+
+            /* ── VIDEO ── */
+            ) : item.messageType === 'video' ? (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setVideoPlayerUri(getImageUrl(item.fileUrl))}
+                style={styles.videoBubbleWrap}
+              >
+                <View style={styles.videoThumbPlaceholder}>
+                  <View style={styles.videoPlayBtn}>
+                    <Ionicons name="play" size={28} color="#FFFFFF" />
+                  </View>
+                  {item.duration > 0 && (
+                    <View style={styles.videoDurationBadge}>
+                      <Text style={styles.videoDurationText}>{formatRecordTime(item.duration)}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.videoLabel}>Video</Text>
+              </TouchableOpacity>
+
+            /* ── DOCUMENT ── */
+            ) : item.messageType === 'document' || item.messageType === 'file' ? (
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => handleDownloadFile(item.fileUrl, item.fileName)}
+                style={styles.docBubble}
+              >
+                <View style={styles.docIconWrap}>
+                  <Ionicons name={getDocIcon(item.fileName)} size={22} color={COLORS.primary} />
+                </View>
+                <View style={styles.docInfo}>
+                  <Text style={styles.docName} numberOfLines={2}>
+                    {item.fileName || 'Document'}
+                  </Text>
+                  <Text style={styles.docSize}>
+                    {formatFileSize(item.fileSize)} • Tap to download
+                  </Text>
+                </View>
+                <Ionicons name="download-outline" size={20} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+
+            /* ── AUDIO / VOICE NOTE ── */
+            ) : item.messageType === 'audio' ? (
+              <View style={styles.audioBubble}>
+                <TouchableOpacity
+                  onPress={() => handlePlayAudio(item)}
+                  style={[styles.audioPlayBtn, { backgroundColor: isMine ? COLORS.primary : COLORS.secondary }]}
+                >
+                  <Ionicons
+                    name={playingAudioId === item._id ? 'pause' : 'play'}
+                    size={16} color="#FFFFFF"
+                  />
+                </TouchableOpacity>
+                <View style={styles.audioWaveWrap}>
+                  {[...Array(12)].map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.audioBar,
+                        {
+                          height: 6 + Math.random() * 14,
+                          backgroundColor: playingAudioId === item._id && (i / 12) < (audioPlayerStatus.currentTime / (audioPlayerStatus.duration || 1))
+                            ? (isMine ? COLORS.primary : COLORS.secondary)
+                            : (isMine ? '#A3D9A5' : '#D1D5DB'),
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+                <Text style={[styles.audioDuration, isMine && { color: COLORS.textSecondary }]}>
+                  {formatRecordTime(item.duration || 0)}
+                </Text>
+              </View>
+
+            /* ── LOCATION ── */
+            ) : item.messageType === 'location' ? (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => {
+                  const lat = item.location?.latitude;
+                  const lng = item.location?.longitude;
+                  if (lat && lng) {
+                    const url = Platform.select({
+                      ios: `maps:${lat},${lng}?q=${lat},${lng}`,
+                      android: `geo:${lat},${lng}?q=${lat},${lng}`,
+                    });
+                    Linking.openURL(url).catch(() => {
+                      Linking.openURL(`https://www.google.com/maps?q=${lat},${lng}`);
+                    });
+                  }
+                }}
+                style={styles.locationBubble}
+              >
+                <View style={styles.locationMapPlaceholder}>
+                  <LinearGradient
+                    colors={['#E8F5E9', '#C8E6C9', '#A5D6A7']}
+                    style={styles.locationGradient}
+                  >
+                    <Ionicons name="location" size={32} color={COLORS.primary} />
+                  </LinearGradient>
+                </View>
+                <View style={styles.locationInfo}>
+                  <Text style={styles.locationTitle}>📍 Location</Text>
+                  {item.location?.address ? (
+                    <Text style={styles.locationAddr} numberOfLines={2}>{item.location.address}</Text>
+                  ) : (
+                    <Text style={styles.locationCoords}>
+                      {item.location?.latitude?.toFixed(4)}, {item.location?.longitude?.toFixed(4)}
+                    </Text>
+                  )}
+                  <Text style={styles.locationTap}>Tap to open in Maps</Text>
+                </View>
+              </TouchableOpacity>
+
+            /* ── TEXT (default) ── */
             ) : (
               <Text style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>
                 {item.content}
@@ -653,7 +1146,7 @@ export default function ChatScreen({ route, navigation }) {
 
             <View style={styles.headerAvatar}>
               <Text style={styles.headerAvatarText}>
-                {(participantName || 'C')
+                {(resolvedParticipantName || 'C')
                   .split(' ')
                   .map((n) => n[0])
                   .join('')
@@ -664,7 +1157,7 @@ export default function ChatScreen({ route, navigation }) {
 
             <View style={styles.headerInfo}>
               <Text style={styles.headerName} numberOfLines={1}>
-                {participantName || 'Chat'}
+                {resolvedParticipantName}
               </Text>
               <View style={styles.onlineRow}>
                 {lastSeenText === 'Online' && <View style={styles.onlineDot} />}
@@ -810,38 +1303,63 @@ export default function ChatScreen({ route, navigation }) {
         </View>
       )}
 
-      {/* ── INPUT BAR ── */}
-      <View style={[styles.inputBar, { paddingBottom: (!keyboardVisible && insets.bottom > 0) ? insets.bottom : 8 }]}>
-        <TouchableOpacity
-          style={styles.attachBtn}
-          onPress={() => setAttachModalVisible(true)}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="add-circle-outline" size={24} color={COLORS.textSecondary} />
-        </TouchableOpacity>
-        <TextInput
-          style={styles.textInput}
-          placeholder={editingMessage ? "Edit message..." : "Type a message..."}
-          placeholderTextColor={COLORS.placeholder}
-          value={inputText}
-          onChangeText={setInputText}
-          onSubmitEditing={handleSend}
-          multiline
-          maxLength={1000}
-        />
-        <TouchableOpacity
-          style={[styles.sendBtn, (!inputText.trim() || sending) && styles.sendBtnDisabled]}
-          onPress={handleSend}
-          disabled={!inputText.trim() || sending}
-          activeOpacity={0.8}
-        >
-          {sending ? (
-            <ActivityIndicator size="small" color={COLORS.white} />
+      {/* ── INPUT BAR (or RECORDING BAR) ── */}
+      {isRecording ? (
+        <View style={[styles.recordingBar, { paddingBottom: (!keyboardVisible && insets.bottom > 0) ? insets.bottom : 8 }]}>
+          <TouchableOpacity onPress={cancelRecording} style={styles.recordCancelBtn}>
+            <Ionicons name="trash-outline" size={22} color={COLORS.error} />
+          </TouchableOpacity>
+          <View style={styles.recordingIndicator}>
+            <Animated.View style={[styles.recordDot, { transform: [{ scale: recordingPulse }] }]} />
+            <Text style={styles.recordTimer}>{formatRecordTime(recordingDuration)}</Text>
+          </View>
+          <TouchableOpacity onPress={stopRecording} style={styles.recordSendBtn}>
+            <Ionicons name="send" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={[styles.inputBar, { paddingBottom: (!keyboardVisible && insets.bottom > 0) ? insets.bottom : 8 }]}>
+          <TouchableOpacity
+            style={styles.attachBtn}
+            onPress={() => setAttachModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="add-circle-outline" size={24} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+          <TextInput
+            style={styles.textInput}
+            placeholder={editingMessage ? "Edit message..." : "Type a message..."}
+            placeholderTextColor={COLORS.placeholder}
+            value={inputText}
+            onChangeText={setInputText}
+            onSubmitEditing={handleSend}
+            multiline
+            maxLength={1000}
+          />
+          {inputText.trim() ? (
+            <TouchableOpacity
+              style={[styles.sendBtn, sending && styles.sendBtnDisabled]}
+              onPress={handleSend}
+              disabled={sending}
+              activeOpacity={0.8}
+            >
+              {sending ? (
+                <ActivityIndicator size="small" color={COLORS.white} />
+              ) : (
+                <Ionicons name={editingMessage ? "checkmark" : "send"} size={18} color={COLORS.white} />
+              )}
+            </TouchableOpacity>
           ) : (
-            <Ionicons name={editingMessage ? "checkmark" : "send"} size={18} color={COLORS.white} />
+            <TouchableOpacity
+              style={styles.micBtn}
+              onPress={startRecording}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="mic" size={22} color={COLORS.primary} />
+            </TouchableOpacity>
           )}
-        </TouchableOpacity>
-      </View>
+        </View>
+      )}
 
       {/* ── MESSAGE INFO MODAL ── */}
       <Modal
@@ -958,30 +1476,46 @@ export default function ChatScreen({ route, navigation }) {
           <View style={styles.bottomSheet}>
             <View style={styles.bottomSheetHeader}>
               <View style={styles.bottomSheetHandle} />
-              <Text style={styles.bottomSheetTitle}>Send Attachment</Text>
+              <Text style={styles.bottomSheetTitle}>Share</Text>
             </View>
             <View style={styles.bottomSheetRow}>
-              <TouchableOpacity
-                style={styles.bottomSheetBtn}
-                onPress={handleTakePhoto}
-                activeOpacity={0.8}
-              >
+              <TouchableOpacity style={styles.bottomSheetBtn} onPress={handleTakePhoto} activeOpacity={0.8}>
                 <View style={[styles.bottomSheetIconWrap, { backgroundColor: '#EDE9FE' }]}>
-                  <Ionicons name="camera" size={24} color={COLORS.secondary} />
+                  <Ionicons name="camera" size={24} color="#7C3AED" />
                 </View>
                 <Text style={styles.bottomSheetBtnTxt}>Camera</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.bottomSheetBtn}
-                onPress={handlePickImage}
-                activeOpacity={0.8}
-              >
+
+              <TouchableOpacity style={styles.bottomSheetBtn} onPress={handlePickImage} activeOpacity={0.8}>
                 <View style={[styles.bottomSheetIconWrap, { backgroundColor: '#D1FAE5' }]}>
-                  <Ionicons name="image" size={24} color={COLORS.primary} />
+                  <Ionicons name="images" size={24} color={COLORS.primary} />
                 </View>
                 <Text style={styles.bottomSheetBtnTxt}>Gallery</Text>
               </TouchableOpacity>
+
+              <TouchableOpacity style={styles.bottomSheetBtn} onPress={handlePickDocument} activeOpacity={0.8}>
+                <View style={[styles.bottomSheetIconWrap, { backgroundColor: '#DBEAFE' }]}>
+                  <Ionicons name="document-text" size={24} color="#2563EB" />
+                </View>
+                <Text style={styles.bottomSheetBtnTxt}>Document</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.bottomSheetRow, { marginTop: 0 }]}>
+              <TouchableOpacity style={styles.bottomSheetBtn} onPress={startRecording} activeOpacity={0.8}>
+                <View style={[styles.bottomSheetIconWrap, { backgroundColor: '#FEE2E2' }]}>
+                  <Ionicons name="mic" size={24} color="#DC2626" />
+                </View>
+                <Text style={styles.bottomSheetBtnTxt}>Voice Note</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.bottomSheetBtn} onPress={handleShareLocation} activeOpacity={0.8}>
+                <View style={[styles.bottomSheetIconWrap, { backgroundColor: '#FEF3C7' }]}>
+                  <Ionicons name="location" size={24} color="#D97706" />
+                </View>
+                <Text style={styles.bottomSheetBtnTxt}>Location</Text>
+              </TouchableOpacity>
+
+              <View style={styles.bottomSheetBtn} />
             </View>
             <TouchableOpacity
               style={styles.bottomSheetCancel}
@@ -1014,6 +1548,34 @@ export default function ChatScreen({ route, navigation }) {
               source={{ uri: selectedImageUri }}
               style={styles.zoomImage}
               resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
+
+      {/* ── VIDEO PLAYER MODAL ── */}
+      <Modal
+        visible={!!videoPlayerUri}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setVideoPlayerUri(null)}
+      >
+        <View style={styles.zoomModalBg}>
+          <TouchableOpacity
+            style={styles.zoomModalClose}
+            onPress={() => setVideoPlayerUri(null)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="close" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+          {videoPlayerUri && (
+            <VideoView
+              player={videoPlayer}
+              style={styles.videoPlayer}
+              nativeControls
+              allowsFullscreen
+              allowsPictureInPicture
+              contentFit="contain"
             />
           )}
         </View>
@@ -1257,4 +1819,46 @@ const styles = StyleSheet.create({
   infoDetailVal: { fontSize: 13, color: COLORS.text, fontWeight: '600', marginTop: 1 },
   infoModalCloseBtn: { backgroundColor: COLORS.primary, borderRadius: SIZES.radius, paddingVertical: 12, alignItems: 'center', marginTop: 20 },
   infoModalCloseTxt: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
+
+  // Video bubble styles
+  videoBubbleWrap: { width: 220, height: 160, borderRadius: 8, overflow: 'hidden', position: 'relative' },
+  videoThumbPlaceholder: { flex: 1, backgroundColor: '#1F2937', alignItems: 'center', justifyContent: 'center' },
+  videoPlayBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0, 0, 0, 0.6)', alignItems: 'center', justifyContent: 'center' },
+  videoDurationBadge: { position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(0, 0, 0, 0.7)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  videoDurationText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
+  videoLabel: { position: 'absolute', bottom: 8, left: 8, color: '#FFFFFF', fontSize: 11, fontWeight: '600' },
+  videoPlayer: { width: width, height: height * 0.8 },
+
+  // Document bubble styles
+  docBubble: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 8, padding: 10, gap: 10, width: 220 },
+  docIconWrap: { width: 36, height: 36, borderRadius: 8, backgroundColor: '#EDE9FE', alignItems: 'center', justifyContent: 'center' },
+  docInfo: { flex: 1 },
+  docName: { fontSize: 13, fontWeight: '700', color: COLORS.text, marginBottom: 2 },
+  docSize: { fontSize: 11, color: COLORS.textSecondary },
+
+  // Audio/Voice note styles
+  audioBubble: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, width: 220 },
+  audioPlayBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  audioWaveWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 30 },
+  audioBar: { width: 2.5, borderRadius: 1.25 },
+  audioDuration: { fontSize: 10, color: COLORS.textSecondary, alignSelf: 'flex-end', marginBottom: 2 },
+
+  // Location bubble styles
+  locationBubble: { width: 220, borderRadius: 8, overflow: 'hidden', backgroundColor: COLORS.white },
+  locationMapPlaceholder: { height: 100, width: '100%' },
+  locationGradient: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  locationInfo: { padding: 8 },
+  locationTitle: { fontSize: 13, fontWeight: '700', color: COLORS.text, marginBottom: 2 },
+  locationAddr: { fontSize: 11, color: COLORS.textSecondary, lineHeight: 15 },
+  locationCoords: { fontSize: 10, color: COLORS.textSecondary },
+  locationTap: { fontSize: 10, color: COLORS.primary, fontWeight: '700', marginTop: 4 },
+
+  // Voice recording bar styles
+  recordingBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: COLORS.white, borderTopWidth: 1, borderTopColor: COLORS.borderLight, height: 56 },
+  recordCancelBtn: { padding: 8 },
+  recordingIndicator: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  recordDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' },
+  recordTimer: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  recordSendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  micBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
 });

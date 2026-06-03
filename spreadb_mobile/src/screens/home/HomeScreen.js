@@ -211,7 +211,7 @@ export default function HomeScreen({ navigation }) {
               onPress={() => navigation.navigate('Wallet')}
               activeOpacity={0.8}
             >
-              <Ionicons name="radio-button-on" size={13} color={COLORS.primary} />
+              <Ionicons name="flash" size={13} color={COLORS.primary} />
               <Text style={styles.sticksPillText}>
                 {counts.sticks ?? 0} Sticks Remaining
               </Text>
@@ -244,7 +244,7 @@ export default function HomeScreen({ navigation }) {
             <>
               <StatCard icon="send-outline"   label="Applied"  value={counts.applications || applications.length} accent={COLORS.primary}  onPress={() => navigation.navigate('MyApplications')} />
               <StatCard icon="cash-outline"   label="Earnings" value={`₹${counts.earnings || 0}`}                accent="#1A4FBF"          onPress={() => navigation.navigate('Wallet')} />
-              <StatCard icon="radio-button-on" label="Sticks Left"  value={counts.sticks || 0}                        accent="#D97706"          onPress={() => navigation.navigate('Wallet')} />
+              <StatCard icon="flash"   label="Sticks Left"  value={counts.sticks || 0}                        accent="#D97706"          onPress={() => navigation.navigate('Wallet')} />
             </>
           ) : (
             <>

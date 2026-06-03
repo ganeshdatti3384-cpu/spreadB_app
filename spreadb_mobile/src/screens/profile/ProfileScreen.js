@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS, SIZES } from '../../theme/colors';
 import { useAuth } from '../../context/AuthContext';
-import { getInfluencerProfile, getBrandProfile, updateInfluencerProfile, updateBrandProfile } from '../../api/profile';
+import { getInfluencerProfile, getBrandProfile, updateInfluencerProfile, updateBrandProfile, getInfluencerById } from '../../api/profile';
 import { BASE_URL } from '../../api/config';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -48,9 +48,12 @@ function MenuItem({ icon, label, onPress, accent, value }) {
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
-export default function ProfileScreen({ navigation }) {
+export default function ProfileScreen({ route = {}, navigation }) {
+  const userId = route?.params?.userId;
+  const isOwnProfile = !userId;
+
   const { user, logout } = useAuth();
-  const isInfluencer = user?.role === 'Influencer';
+  const isInfluencer = isOwnProfile ? (user?.role === 'Influencer') : true;
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -59,15 +62,20 @@ export default function ProfileScreen({ navigation }) {
 
   const load = useCallback(async () => {
     try {
-      const res = isInfluencer ? await getInfluencerProfile() : await getBrandProfile();
-      setProfile(res.data?.profile || res.data);
+      if (isOwnProfile) {
+        const res = isInfluencer ? await getInfluencerProfile() : await getBrandProfile();
+        setProfile(res.data?.profile || res.data);
+      } else {
+        const res = await getInfluencerById(userId);
+        setProfile(res.data?.influencer || res.data);
+      }
     } catch (e) {
       console.log('Profile load error:', e?.response?.status, e?.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [isInfluencer]);
+  }, [isOwnProfile, isInfluencer, userId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -120,7 +128,7 @@ export default function ProfileScreen({ navigation }) {
   const photoUrl = photoPath ? `${BASE_URL}/${photoPath}` : null;
 
   const displayName = isInfluencer
-    ? `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || user?.email?.split('@')[0]
+    ? `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || (isOwnProfile ? user?.email?.split('@')[0] : 'Influencer')
     : profile?.brandName || user?.email?.split('@')[0];
 
   const initials = displayName
@@ -138,19 +146,31 @@ export default function ProfileScreen({ navigation }) {
         end={{ x: 1, y: 1 }}
         style={styles.header}
       >
-        {/* Edit button */}
-        <TouchableOpacity
-          style={styles.editBtn}
-          onPress={() => navigation.navigate(isInfluencer ? 'CreateInfluencerProfile' : 'CreateBrandProfile')}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="create-outline" size={14} color={COLORS.white} />
-          <Text style={styles.editBtnText}>Edit Profile</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', justifyContent: isOwnProfile ? 'flex-end' : 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          {!isOwnProfile && (
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="arrow-back" size={20} color={COLORS.white} />
+            </TouchableOpacity>
+          )}
+          {isOwnProfile && (
+            <TouchableOpacity
+              style={styles.editBtn}
+              onPress={() => navigation.navigate(isInfluencer ? 'CreateInfluencerProfile' : 'CreateBrandProfile')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="create-outline" size={14} color={COLORS.white} />
+              <Text style={styles.editBtnText}>Edit Profile</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Avatar & Name */}
         <View style={styles.avatarSection}>
-          <TouchableOpacity style={styles.avatarWrap} onPress={handleChangePhoto} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.avatarWrap} onPress={isOwnProfile ? handleChangePhoto : null} activeOpacity={isOwnProfile ? 0.85 : 1}>
             {uploadingPhoto ? (
               <View style={[styles.avatarPlaceholder, !isInfluencer && styles.avatarBrand]}>
                 <ActivityIndicator color={COLORS.primary} />
@@ -165,9 +185,11 @@ export default function ProfileScreen({ navigation }) {
                 }
               </View>
             )}
-            <View style={styles.cameraBtn}>
-              <Ionicons name="camera" size={12} color={COLORS.white} />
-            </View>
+            {isOwnProfile && (
+              <View style={styles.cameraBtn}>
+                <Ionicons name="camera" size={12} color={COLORS.white} />
+              </View>
+            )}
           </TouchableOpacity>
 
           <Text style={styles.displayName}>{displayName || 'User'}</Text>
@@ -201,120 +223,187 @@ export default function ProfileScreen({ navigation }) {
         }
       >
         {/* Stats Row */}
-        <View style={styles.statsRow}>
-          {isInfluencer ? (
-            <>
+        {isOwnProfile ? (
+          <View style={styles.statsRow}>
+            {isInfluencer ? (
+              <>
+                <StatCard 
+                  icon="send" 
+                  color={COLORS.primary} 
+                  value={profile?.applicationsCount || 0} 
+                  label="Applied" 
+                  onPress={() => navigation.navigate('MyApplications')} 
+                />
+                <StatCard 
+                  icon="cash" 
+                  color={COLORS.accent} 
+                  value={`₹${profile?.earnings || 0}`} 
+                  label="Earnings" 
+                  onPress={() => navigation.navigate('Wallet')} 
+                />
+                <StatCard 
+                  icon="flash" 
+                  color={COLORS.warning} 
+                  value={sticks} 
+                  label="Sticks" 
+                  onPress={() => navigation.navigate('Wallet')} 
+                />
+              </>
+            ) : (
+              <>
+                <StatCard 
+                  icon="megaphone" 
+                  color={COLORS.primary} 
+                  value={profile?.promotionsPosted || 0} 
+                  label="Campaigns" 
+                  onPress={() => navigation.navigate('Promotions')} 
+                />
+                <StatCard 
+                  icon="people" 
+                  color={COLORS.accent} 
+                  value={profile?.activeCollaborations || 0} 
+                  label="Collabs" 
+                />
+                <StatCard 
+                  icon="star" 
+                  color={COLORS.warning} 
+                  value={profile?.rating || '—'} 
+                  label="Rating" 
+                />
+              </>
+            )}
+          </View>
+        ) : (
+          <View style={styles.statsRow}>
+            <StatCard 
+              icon="star" 
+              color={COLORS.warning} 
+              value={profile?.rating || '—'} 
+              label="Rating" 
+            />
+            {profile?.category?.[0] && (
               <StatCard 
-                icon="send" 
+                icon="pricetag" 
                 color={COLORS.primary} 
-                value={profile?.applicationsCount || 0} 
-                label="Applied" 
-                onPress={() => navigation.navigate('MyApplications')} 
+                value={profile.category[0]} 
+                label="Category" 
               />
+            )}
+            {profile?.locations?.[0] && (
               <StatCard 
-                icon="cash" 
+                icon="location" 
                 color={COLORS.accent} 
-                value={`₹${profile?.earnings || 0}`} 
-                label="Earnings" 
-                onPress={() => navigation.navigate('Wallet')} 
+                value={profile.locations[0]} 
+                label="Location" 
               />
-              <StatCard 
-                icon="radio-button-on" 
-                color={COLORS.warning} 
-                value={sticks} 
-                label="Sticks" 
-                onPress={() => navigation.navigate('Wallet')} 
-              />
-            </>
-          ) : (
-            <>
-              <StatCard 
-                icon="megaphone" 
-                color={COLORS.primary} 
-                value={profile?.promotionsPosted || 0} 
-                label="Campaigns" 
-                onPress={() => navigation.navigate('Promotions')} 
-              />
-              <StatCard 
-                icon="people" 
-                color={COLORS.accent} 
-                value={profile?.activeCollaborations || 0} 
-                label="Collabs" 
-              />
-              <StatCard 
-                icon="star" 
-                color={COLORS.warning} 
-                value={profile?.rating || '—'} 
-                label="Rating" 
-              />
-            </>
-          )}
-        </View>
+            )}
+          </View>
+        )}
 
         {/* Bio */}
-        {(profile?.about || profile?.description) && (
+        {(profile?.about || profile?.description || profile?.bio) && (
           <View style={styles.bioCard}>
             <View style={styles.bioHeader}>
               <Ionicons name="information-circle" size={16} color={COLORS.primary} />
               <Text style={styles.bioTitle}>About</Text>
             </View>
             <Text style={styles.bioText} numberOfLines={4}>
-              {profile.about || profile.description}
+              {profile.about || profile.description || profile.bio}
             </Text>
           </View>
         )}
 
-        {/* Menu Section */}
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.menuCard}>
-          <MenuItem 
-            icon="notifications" 
-            label="Notifications" 
-            accent={COLORS.secondary} 
-            onPress={() => navigation.navigate('Notifications')} 
-          />
-          <MenuItem 
-            icon="wallet" 
-            label="Wallet" 
-            accent={COLORS.warning} 
-            onPress={() => navigation.navigate('Wallet')}
-            value={isInfluencer ? `${sticks} sticks` : undefined} 
-          />
-          {isInfluencer && (
-            <MenuItem 
-              icon="briefcase" 
-              label="My Applications" 
-              accent={COLORS.accent} 
-              onPress={() => navigation.navigate('MyApplications')} 
-            />
-          )}
-          {!isInfluencer && (
-            <MenuItem 
-              icon="document-text" 
-              label="Proposals" 
-              accent={COLORS.accent} 
-              onPress={() => navigation.navigate('Proposals')} 
-            />
-          )}
-          <MenuItem 
-            icon="document" 
-            label="Agreements" 
-            accent={COLORS.primary} 
-            onPress={() => navigation.navigate('Agreements')} 
-          />
-          <MenuItem 
-            icon="key-outline" 
-            label="Change Password" 
-            accent="#8B5CF6" 
-            onPress={() => navigation.navigate('ChangePassword')} 
-          />
-        </View>
+        {/* Social Reach for Influencer Public Profile */}
+        {isInfluencer && profile?.socialMedia && (
+          <View style={{ marginHorizontal: 16, marginBottom: 16 }}>
+            <Text style={styles.sectionTitle}>Social Media Reach</Text>
+            <View style={styles.menuCard}>
+              {profile.socialMedia.instagram?.link && (
+                <View style={styles.menuItem}>
+                  <Ionicons name="logo-instagram" size={18} color="#E1306C" />
+                  <Text style={[styles.menuLabel, { marginLeft: 8 }]}>Instagram</Text>
+                  <Text style={styles.menuValue}>
+                    {profile.socialMedia.instagram.followers?.toLocaleString() || 0} followers
+                  </Text>
+                </View>
+              )}
+              {profile.socialMedia.youtube?.link && (
+                <View style={styles.menuItem}>
+                  <Ionicons name="logo-youtube" size={18} color="#FF0000" />
+                  <Text style={[styles.menuLabel, { marginLeft: 8 }]}>YouTube</Text>
+                  <Text style={styles.menuValue}>
+                    {profile.socialMedia.youtube.followers?.toLocaleString() || 0} subs
+                  </Text>
+                </View>
+              )}
+              {profile.socialMedia.twitter?.link && (
+                <View style={styles.menuItem}>
+                  <Ionicons name="logo-twitter" size={18} color="#1DA1F2" />
+                  <Text style={[styles.menuLabel, { marginLeft: 8 }]}>Twitter</Text>
+                  <Text style={styles.menuValue}>
+                    {profile.socialMedia.twitter.followers?.toLocaleString() || 0} followers
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
 
-        {/* Logout */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
-          <Ionicons name="log-out-outline" size={18} color={COLORS.error} />
-          <Text style={styles.logoutText}>Log Out</Text>
-        </TouchableOpacity>
+        {/* Menu Section */}
+        {isOwnProfile && (
+          <>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <View style={styles.menuCard}>
+              <MenuItem 
+                icon="notifications" 
+                label="Notifications" 
+                accent={COLORS.secondary} 
+                onPress={() => navigation.navigate('Notifications')} 
+              />
+              <MenuItem 
+                icon="wallet" 
+                label="Wallet" 
+                accent={COLORS.warning} 
+                onPress={() => navigation.navigate('Wallet')}
+                value={isInfluencer ? `${sticks} sticks` : undefined} 
+              />
+              {isInfluencer && (
+                <MenuItem 
+                  icon="briefcase" 
+                  label="My Applications" 
+                  accent={COLORS.accent} 
+                  onPress={() => navigation.navigate('MyApplications')} 
+                />
+              )}
+              {!isInfluencer && (
+                <MenuItem 
+                  icon="document-text" 
+                  label="Proposals" 
+                  accent={COLORS.accent} 
+                  onPress={() => navigation.navigate('Proposals')} 
+                />
+              )}
+              <MenuItem 
+                icon="document" 
+                label="Agreements" 
+                accent={COLORS.primary} 
+                onPress={() => navigation.navigate('Agreements')} 
+              />
+              <MenuItem 
+                icon="key-outline" 
+                label="Change Password" 
+                accent="#8B5CF6" 
+                onPress={() => navigation.navigate('ChangePassword')} 
+              />
+            </View>
+
+            {/* Logout */}
+            <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
+              <Ionicons name="log-out-outline" size={18} color={COLORS.error} />
+              <Text style={styles.logoutText}>Log Out</Text>
+            </TouchableOpacity>
+          </>
+        )}
 
         <View style={{ height: 24 }} />
       </ScrollView>
@@ -332,6 +421,17 @@ const styles = StyleSheet.create({
     paddingTop: 50, 
     paddingBottom: 32, 
     paddingHorizontal: 20,
+  },
+  backBtn: {
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    width: 36,
+    height: 36,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 18,
+    borderWidth: 1, 
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   editBtn: {
     flexDirection: 'row', 

@@ -19,7 +19,7 @@ const messageSchema = new mongoose.Schema({
   },
   messageType: {
     type: String,
-    enum: ["text", "image", "file", "document"],
+    enum: ["text", "image", "file", "document", "video", "audio", "location"],
     default: "text"
   },
   content: {
@@ -31,7 +31,7 @@ const messageSchema = new mongoose.Schema({
   fileUrl: {
     type: String,
     required: function() {
-      return this.messageType !== "text";
+      return ["image", "file", "document", "video", "audio"].includes(this.messageType);
     }
   },
   fileName: {
@@ -39,6 +39,17 @@ const messageSchema = new mongoose.Schema({
   },
   fileSize: {
     type: Number
+  },
+  duration: {
+    type: Number  // Duration in seconds for audio/video
+  },
+  thumbnail: {
+    type: String  // Thumbnail URL for video messages
+  },
+  location: {
+    latitude: { type: Number },
+    longitude: { type: Number },
+    address: { type: String }
   },
   isRead: {
     type: Boolean,

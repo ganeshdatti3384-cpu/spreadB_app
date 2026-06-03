@@ -101,7 +101,7 @@ export default function SticksPricingScreen({ navigation }) {
                 <View style={styles.planCardHeader}>
                   <View style={styles.planSticksWrap}>
                     <Ionicons 
-                      name="radio-button-on" 
+                      name="flash" 
                       size={20} 
                       color={plan.popular ? COLORS.primary : COLORS.primary} 
                     />

@@ -152,7 +152,46 @@ export default function PromotionDetailScreen({ route, navigation }) {
       
       const conversationId = res.data?.conversationId || res.data?.conversation?._id;
       if (conversationId) {
-        navigation.navigate('Chat', { conversationId });
+        navigation.navigate('Chat', { 
+          conversationId,
+          participantName: promotion?.brandName || 'Brand'
+        });
+      } else {
+        Alert.alert('Success', 'Message sent! Check your messages.');
+        navigation.navigate('Messages');
+      }
+    } catch (e) {
+      const msg = e.response?.data?.message || 'Failed to start conversation. Please try again.';
+      Alert.alert('Error', msg);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleChatWithApplicant = async (influencerUserId, fullName) => {
+    if (!influencerUserId) {
+      Alert.alert('Error', 'Influencer information not available');
+      return;
+    }
+    
+    setChatLoading(true);
+    try {
+      const key = deriveSharedKey(user?._id, influencerUserId);
+      const initialText = `Hi ${fullName}! I saw your application for my campaign "${promotion?.title}"`;
+      const encryptedText = encryptMessage(initialText, key);
+
+      const res = await startConversation({
+        receiverId: influencerUserId,
+        content: encryptedText,
+        relatedPromotion: id
+      });
+      
+      const conversationId = res.data?.conversationId || res.data?.conversation?._id;
+      if (conversationId) {
+        navigation.navigate('Chat', { 
+          conversationId,
+          participantName: fullName
+        });
       } else {
         Alert.alert('Success', 'Message sent! Check your messages.');
         navigation.navigate('Messages');
@@ -268,11 +307,11 @@ export default function PromotionDetailScreen({ route, navigation }) {
         {isInfluencer && sticksBalance !== null && (
           <View style={[styles.sticksCard, { borderColor: sticksOk ? COLORS.primary : COLORS.error }]}>
             <View style={styles.sticksLeft}>
-              <Ionicons name="star" size={20} color={sticksOk ? COLORS.primary : COLORS.error} />
+              <Ionicons name="flash" size={20} color={sticksOk ? COLORS.primary : COLORS.error} />
               <View style={{ marginLeft: 10 }}>
                 <Text style={styles.sticksTitle}>Your Sticks Balance</Text>
                 <Text style={[styles.sticksValue, { color: sticksOk ? COLORS.primary : COLORS.error }]}>
-                  {sticksBalance} sticks
+                  {sticksBalance} Sticks ⚡
                 </Text>
               </View>
             </View>
@@ -373,11 +412,11 @@ export default function PromotionDetailScreen({ route, navigation }) {
               </View>
               <View style={styles.reqRow}>
                 <View style={styles.reqIcon}>
-                  <Ionicons name="star-outline" size={18} color={COLORS.warning} />
+                  <Ionicons name="flash-outline" size={18} color={COLORS.warning} />
                 </View>
                 <View style={styles.reqInfo}>
                   <Text style={styles.reqLabel}>Required Sticks</Text>
-                  <Text style={styles.reqValue}>{promotion.requiredSticks || 0} sticks minimum</Text>
+                  <Text style={styles.reqValue}>{promotion.requiredSticks || 0} Sticks ⚡ minimum</Text>
                 </View>
               </View>
               <View style={styles.reqRow}>
@@ -458,23 +497,35 @@ export default function PromotionDetailScreen({ route, navigation }) {
                 ? `${app.firstName} ${app.lastName}`.trim()
                 : app.name || app.influencer?.name || 'Influencer';
               const initials = fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
-              
+              const influencerUserId = app.influencer?.id || app.influencer?._id || app.influencerId?._id || app.influencerId;
+
               return (
                 <View key={i} style={styles.applicantRow}>
-                  <View style={styles.applicantAvatar}>
-                    <Text style={styles.applicantAvatarText}>{initials}</Text>
-                  </View>
-                  <View style={styles.applicantInfo}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={styles.applicantName}>{fullName}</Text>
-                      {app.boostSticks > 0 && (
-                        <View style={styles.boostPill}>
-                          <Text style={styles.boostPillText}>⚡ Boosted ({app.boostSticks})</Text>
-                        </View>
-                      )}
+                  <TouchableOpacity 
+                    style={styles.applicantLeftSection}
+                    onPress={() => {
+                      if (influencerUserId) {
+                        navigation.navigate('UserProfile', { userId: influencerUserId });
+                      } else {
+                        Alert.alert('Error', 'User profile not available');
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.applicantAvatar}>
+                      <Text style={styles.applicantAvatarText}>{initials}</Text>
                     </View>
-                    <Text style={styles.applicantEmail}>{app.email || app.influencer?.email || ''}</Text>
-                  </View>
+                    <View style={styles.applicantInfo}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.applicantName}>{fullName}</Text>
+                        {app.boostSticks > 0 && (
+                          <View style={styles.boostPill}>
+                            <Text style={styles.boostPillText}>⚡ Boosted ({app.boostSticks})</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  </TouchableOpacity>
                   <View style={[styles.appStatusBadge, {
                     backgroundColor: APP_STATUS_COLORS[app.status?.toLowerCase()]?.bg || COLORS.background
                   }]}>
@@ -482,6 +533,13 @@ export default function PromotionDetailScreen({ route, navigation }) {
                       color: APP_STATUS_COLORS[app.status?.toLowerCase()]?.text || COLORS.textSecondary
                     }]}>{app.status}</Text>
                   </View>
+                  <TouchableOpacity
+                    style={styles.applicantChatBtn}
+                    onPress={() => handleChatWithApplicant(influencerUserId, fullName)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="chatbubble-ellipses-outline" size={18} color={COLORS.primary} />
+                  </TouchableOpacity>
                 </View>
               );
             })}
@@ -533,7 +591,7 @@ export default function PromotionDetailScreen({ route, navigation }) {
                   <Text style={styles.bottomBtnText}>
                     {hasApplied
                       ? 'Already Applied'
-                      : `Apply Now (${promotion.requiredSticks || 0} Sticks)`}
+                      : `Apply Now (${promotion.requiredSticks || 0} Sticks ⚡)`}
                   </Text>
                 </>
               )}
@@ -574,25 +632,25 @@ export default function PromotionDetailScreen({ route, navigation }) {
 
             <ScrollView contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false}>
               <Text style={styles.modalDesc}>
-                Applying to "{promotion?.title}" will spend sticks from your balance.
+                Applying to "{promotion?.title}" will spend Sticks ⚡ from your balance.
               </Text>
 
               <View style={styles.modalInfoCard}>
                 <View style={styles.modalInfoRow}>
                   <Text style={styles.modalInfoLabel}>Required Sticks</Text>
-                  <Text style={styles.modalInfoVal}>{promotion?.requiredSticks || 0} sticks</Text>
+                  <Text style={styles.modalInfoVal}>{promotion?.requiredSticks || 0} Sticks ⚡</Text>
                 </View>
                 <View style={styles.modalInfoRow}>
                   <Text style={styles.modalInfoLabel}>Your Balance</Text>
                   <Text style={[styles.modalInfoVal, { color: sticksOk ? COLORS.primary : COLORS.error }]}>
-                    {sticksBalance} sticks
+                    {sticksBalance} Sticks ⚡
                   </Text>
                 </View>
               </View>
 
               <Text style={styles.boostTitle}>🚀 Boost Your Application (Optional)</Text>
               <Text style={styles.boostSub}>
-                Spend additional sticks to push your application to the top of the brand owner's list. Higher boost appears first.
+                Spend additional Sticks ⚡ to push your application to the top of the brand owner's list. Higher boost appears first.
               </Text>
 
               {/* Quick Select Buttons */}
@@ -645,12 +703,12 @@ export default function PromotionDetailScreen({ route, navigation }) {
                   }}
                   placeholder="0"
                 />
-                <Text style={styles.inputSuffix}>sticks</Text>
+                <Text style={styles.inputSuffix}>Sticks ⚡</Text>
               </View>
 
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryText}>
-                  Total Cost: <Text style={{ fontWeight: 'bold' }}>{(promotion?.requiredSticks || 0) + (parseInt(boostSticksInput) || 0)} sticks</Text>
+                  Total Cost: <Text style={{ fontWeight: 'bold' }}>{(promotion?.requiredSticks || 0) + (parseInt(boostSticksInput) || 0)} Sticks ⚡</Text>
                 </Text>
               </View>
             </ScrollView>
@@ -802,6 +860,21 @@ const styles = StyleSheet.create({
   applicantInfo: { flex: 1 },
   applicantName: { fontSize: 14, fontWeight: '600', color: COLORS.text },
   applicantEmail: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  applicantLeftSection: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  applicantChatBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
 
   bottomBar: {
     backgroundColor: COLORS.white, paddingHorizontal: 16, paddingVertical: 12,

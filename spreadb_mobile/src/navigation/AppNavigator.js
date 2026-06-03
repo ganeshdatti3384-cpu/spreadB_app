@@ -125,6 +125,7 @@ function AppStack() {
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
       <Stack.Screen name="CreateInfluencerProfile" component={CreateInfluencerProfileScreen} />
       <Stack.Screen name="CreateBrandProfile" component={CreateBrandProfileScreen} />
+      <Stack.Screen name="UserProfile" component={ProfileScreen} />
     </Stack.Navigator>
   );
 }

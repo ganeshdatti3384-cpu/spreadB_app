@@ -44,11 +44,22 @@ const fileFilter = (req, file, cb) => {
   if (file.mimetype.startsWith('image/')) {
     cb(null, true);
   }
+  // Allow videos
+  else if (file.mimetype.startsWith('video/')) {
+    cb(null, true);
+  }
+  // Allow audio
+  else if (file.mimetype.startsWith('audio/')) {
+    cb(null, true);
+  }
   // Allow documents
   else if (file.mimetype === 'application/pdf' || 
            file.mimetype === 'application/msword' ||
            file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-           file.mimetype === 'text/plain') {
+           file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+           file.mimetype === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+           file.mimetype === 'text/plain' ||
+           file.mimetype === 'text/csv') {
     cb(null, true);
   }
   // Allow other common file types
@@ -57,7 +68,7 @@ const fileFilter = (req, file, cb) => {
     cb(null, true);
   }
   else {
-    cb(new Error('Invalid file type. Only images, documents (PDF, DOC, DOCX, TXT) and ZIP files are allowed.'), false);
+    cb(new Error('Invalid file type. Allowed: images, videos, audio, documents (PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, CSV) and ZIP files.'), false);
   }
 };
 
@@ -65,7 +76,7 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit
+    fileSize: 25 * 1024 * 1024 // 25MB limit for video/audio support
   }
 });
 
@@ -116,7 +127,7 @@ router.use((error, req, res, next) => {
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({
         success: false,
-        message: 'File too large. Maximum size is 10MB.'
+        message: 'File too large. Maximum size is 25MB.'
       });
     }
   }

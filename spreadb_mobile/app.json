@@ -26,7 +26,8 @@
         "ACCESS_COARSE_LOCATION",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
-        "CAMERA"
+        "CAMERA",
+        "RECORD_AUDIO"
       ]
     },
     "web": {
@@ -39,7 +40,16 @@
           "locationAlwaysAndWhenInUsePermission": "SpreadB uses your location to show nearby campaigns and influencers."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-sharing",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow SpreadB to access your microphone to record voice notes."
+        }
+      ],
+      "expo-video",
+      "expo-asset"
     ]
   }
 }

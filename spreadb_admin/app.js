@@ -189,15 +189,15 @@ function renderUsers(users) {
   }
 
   users.forEach(u => {
-    const name = `${u.firstName} ${u.lastName}`;
-    const email = u.email;
-    const roleBadge = `<span class="badge ${u.role === 'Influencer' ? 'primary' : 'success'}">${u.role}</span>`;
+    const name = `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Unnamed User';
+    const email = u.email || 'N/A';
+    const roleBadge = `<span class="badge ${u.role === 'Influencer' ? 'primary' : 'success'}">${u.role || 'User'}</span>`;
     
     // Sticks Balance
     const sticksBalance = u.role === 'Influencer' ? (u.profile?.sticks?.total ?? 0) : '—';
     
     // Wallet Balance
-    const walletBalance = u.wallet ? `₹${u.wallet.availableBalance.toLocaleString()}` : '₹0';
+    const walletBalance = u.wallet ? `₹${(u.wallet.availableBalance || 0).toLocaleString()}` : '₹0';
     
     // Bank Verification status
     let bankBadge = '—';
@@ -245,21 +245,21 @@ function renderTransactions(transactions) {
     const sign = isCredit ? '+' : '-';
     const color = isCredit ? 'var(--success)' : 'var(--text-primary)';
     
-    const amountVal = t.isSticks ? `${t.amount} Sticks` : `₹${t.amount.toLocaleString()}`;
-    const name = t.user ? `${t.user.firstName} ${t.user.lastName}` : 'System/Deleted';
-    const role = t.user ? t.user.role : '';
+    const amountVal = t.isSticks ? `${t.amount || 0} Sticks` : `₹${(t.amount || 0).toLocaleString()}`;
+    const name = t.user ? `${t.user.firstName || ''} ${t.user.lastName || ''}`.trim() || 'Unnamed User' : 'System/Deleted';
+    const role = t.user ? (t.user.role || '') : '';
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><span style="font-family: monospace; font-size: 12px; color: var(--text-secondary);">${t._id}</span></td>
+      <td><span style="font-family: monospace; font-size: 12px; color: var(--text-secondary);">${t._id || 'N/A'}</span></td>
       <td>
         <div style="font-weight: 600;">${name}</div>
         <div style="font-size: 11px; color: var(--text-secondary);">${role}</div>
       </td>
-      <td><span class="badge ${isCredit ? 'success' : 'outline'}">${t.type}</span></td>
+      <td><span class="badge ${isCredit ? 'success' : 'outline'}">${t.type || 'unknown'}</span></td>
       <td style="color: ${color}; font-weight: 700;">${sign} ${amountVal}</td>
-      <td style="font-size: 13px;">${t.description}</td>
-      <td style="color: var(--text-secondary); font-size: 12px;">${new Date(t.createdAt || t.date).toLocaleString('en-IN')}</td>
+      <td style="font-size: 13px;">${t.description || 'No description'}</td>
+      <td style="color: var(--text-secondary); font-size: 12px;">${new Date(t.createdAt || t.date || Date.now()).toLocaleString('en-IN')}</td>
     `;
     transactionsTableBody.appendChild(tr);
   });
@@ -275,21 +275,21 @@ function renderWithdrawals(withdrawals) {
   }
 
   withdrawals.forEach(w => {
-    const name = w.user ? `${w.user.firstName} ${w.user.lastName}` : 'Unknown';
-    const email = w.user ? w.user.email : '';
+    const name = w.user ? `${w.user.firstName || ''} ${w.user.lastName || ''}`.trim() || 'Unnamed User' : 'Unknown';
+    const email = w.user ? (w.user.email || '') : '';
     
     // Bank Account details
     const bankText = w.bankDetails ? `
-      <div>${w.bankDetails.accountHolderName}</div>
-      <div style="font-size: 12px; color: var(--text-secondary);">A/C: ${w.bankDetails.accountNumber}</div>
-      <div style="font-size: 12px; color: var(--text-secondary);">IFSC: ${w.ifscCode || w.bankDetails.ifscCode} | Bank: ${w.bankDetails.bankName}</div>
+      <div>${w.bankDetails.accountHolderName || 'N/A'}</div>
+      <div style="font-size: 12px; color: var(--text-secondary);">A/C: ${w.bankDetails.accountNumber || 'N/A'}</div>
+      <div style="font-size: 12px; color: var(--text-secondary);">IFSC: ${w.ifscCode || w.bankDetails.ifscCode || 'N/A'} | Bank: ${w.bankDetails.bankName || 'N/A'}</div>
     ` : '<span style="color: var(--danger);">No Details</span>';
 
     // Status Badge
     let statusClass = 'warning';
     if (w.status === 'completed') statusClass = 'success';
     if (w.status === 'failed') statusClass = 'danger';
-    const statusBadge = `<span class="badge ${statusClass}">${w.status}</span>`;
+    const statusBadge = `<span class="badge ${statusClass}">${w.status || 'pending'}</span>`;
 
     // Actions
     let actionBtn = '';
@@ -315,9 +315,9 @@ function renderWithdrawals(withdrawals) {
         <div style="font-size: 12px; color: var(--text-secondary);">${email}</div>
       </td>
       <td>${bankText}</td>
-      <td style="font-weight: 700; font-size: 15px;">₹${w.amount.toLocaleString()}</td>
+      <td style="font-weight: 700; font-size: 15px;">₹${(w.amount || 0).toLocaleString()}</td>
       <td>${statusBadge}</td>
-      <td style="color: var(--text-secondary); font-size: 12px;">${new Date(w.createdAt).toLocaleString('en-IN')}</td>
+      <td style="color: var(--text-secondary); font-size: 12px;">${new Date(w.createdAt || Date.now()).toLocaleString('en-IN')}</td>
       <td>${actionBtn}</td>
     `;
     withdrawalsTableBody.appendChild(tr);

@@ -263,7 +263,7 @@ export const getConversationMessages = async (req, res) => {
 // Send a new message
 export const sendMessage = async (req, res) => {
   try {
-    const { receiverId, content, messageType = "text", conversationId: bodyConversationId, relatedPromotion } = req.body;
+    const { receiverId, content, messageType = "text", conversationId: bodyConversationId, relatedPromotion, duration, location, thumbnail } = req.body;
     const senderId = req.user.id;
     
     console.log('=== BACKEND Send Message Debug ===');
@@ -320,8 +320,8 @@ export const sendMessage = async (req, res) => {
         });
       }
       
-      // Validate content or file
-      if (!content && !req.file) {
+      // Validate content or file (location messages don't need either)
+      if (!content && !req.file && messageType !== "location") {
         return res.status(400).json({
           success: false,
           message: "Message content or file is required"
@@ -352,7 +352,7 @@ export const sendMessage = async (req, res) => {
       }
       
       // Create message
-      const message = new Message({
+      const messageData = {
         conversationId: conversation._id,
         senderId,
         receiverId: actualReceiverId,
@@ -361,7 +361,20 @@ export const sendMessage = async (req, res) => {
         fileUrl,
         fileName,
         fileSize
-      });
+      };
+      
+      // Add optional fields for rich media
+      if (duration) messageData.duration = Number(duration);
+      if (thumbnail) messageData.thumbnail = thumbnail;
+      if (messageType === "location" && location) {
+        messageData.location = {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          address: location.address || ''
+        };
+      }
+      
+      const message = new Message(messageData);
       
       await message.save();
       
@@ -407,7 +420,7 @@ export const sendMessage = async (req, res) => {
       });
     }
     
-    if (!content && !req.file) {
+    if (!content && !req.file && messageType !== "location") {
       console.error('❌ Missing content and file in request');
       return res.status(400).json({
         success: false,
@@ -524,7 +537,7 @@ export const sendMessage = async (req, res) => {
     }
 
     // Create message
-    const message = new Message({
+    const messageData = {
       conversationId: conversation._id,
       senderId,
       receiverId,
@@ -533,7 +546,20 @@ export const sendMessage = async (req, res) => {
       fileUrl,
       fileName,
       fileSize
-    });
+    };
+    
+    // Add optional fields for rich media
+    if (duration) messageData.duration = Number(duration);
+    if (thumbnail) messageData.thumbnail = thumbnail;
+    if (messageType === "location" && location) {
+      messageData.location = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        address: location.address || ''
+      };
+    }
+    
+    const message = new Message(messageData);
     
     await message.save();
     
