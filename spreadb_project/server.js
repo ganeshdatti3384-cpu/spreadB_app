@@ -76,7 +76,10 @@ app.use(passport.session());
 
 connectDB();
 
-app.use("/api/uploads", express.static("uploads"));
+const isVercel = process.env.VERCEL === "1" || process.env.VERCEL;
+const uploadsDir = isVercel ? "/tmp/uploads" : "uploads";
+
+app.use("/api/uploads", express.static(uploadsDir));
 app.use("/api/auth", auth_router);
 app.use("/api/profile",profile_router)
 app.use("/api/promotion",promotion_router)
@@ -91,7 +94,8 @@ app.use("/api/wallet", wallet_router);  // 🆕 Add wallet routes
 app.use("/api/payment", payment_router);  // 🆕 Add payment routes
 app.use("/api/admin", admin_router);  // 🆕 Add admin routes
 //app.use("/api/influencer", influencer_routers);
-app.use("/api/uploads/promotions", express.static("uploads/promotions"));
+const promotionsDir = isVercel ? "/tmp/uploads/promotions" : "uploads/promotions";
+app.use("/api/uploads/promotions", express.static(promotionsDir));
 app.use("/admin", express.static("../spreadb_admin"));
 
 const PORT = 3001;

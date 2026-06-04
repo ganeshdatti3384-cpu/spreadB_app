@@ -346,7 +346,7 @@ export const sendMessage = async (req, res) => {
       let fileSize = null;
       
       if (req.file && messageType !== "text") {
-        fileUrl = `/api/uploads/messages/${req.file.filename}`;
+        fileUrl = req.file.location || `/api/uploads/messages/${req.file.filename}`;
         fileName = req.file.originalname;
         fileSize = req.file.size;
       }
@@ -519,7 +519,7 @@ export const sendMessage = async (req, res) => {
     let fileSize = null;
     
     if (req.file && messageType !== "text") {
-      fileUrl = `/api/uploads/messages/${req.file.filename}`;
+      fileUrl = req.file.location || `/api/uploads/messages/${req.file.filename}`;
       fileName = req.file.originalname;
       fileSize = req.file.size;
     }

@@ -6,6 +6,9 @@ import{CampaignSubmission} from "../model/campaignsubmission_model.js"
 import { Application } from "../model/promotion_model.js";
 import{Agreement} from "../model/agreement_model.js"
 import Wallet from "../model/wallet_model.js";
+import fs from "fs";
+import { DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { s3, s3BucketName } from "../utils/s3Config.js";
 
 export const createPromotion = async (req, res) => {
   try {
@@ -508,8 +511,8 @@ export const updatePromotion = async (req, res) => {
     // Handle image uploads for updates
     if (req.files && req.files.length > 0) {
       const newImages = req.files.map(file => ({
-        url: `/api/uploads/promotions/${file.filename}`,
-        filename: file.filename,
+        url: file.location || `/api/uploads/promotions/${file.filename}`,
+        filename: file.filename || file.key,
         originalName: file.originalname,
         size: file.size,
         mimetype: file.mimetype
@@ -571,9 +574,16 @@ export const deletePromotionImage = async (req, res) => {
 
     // Delete physical file
     try {
-      const filePath = `uploads/promotions/${imageToRemove.filename}`;
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      if (imageToRemove.filename && imageToRemove.filename.includes('/')) {
+        await s3.send(new DeleteObjectCommand({
+          Bucket: s3BucketName,
+          Key: imageToRemove.filename
+        }));
+      } else {
+        const filePath = `uploads/promotions/${imageToRemove.filename}`;
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
       }
     } catch (fileError) {
       console.error('Error deleting image file:', fileError);
@@ -601,16 +611,23 @@ export const deletePromotion = async (req, res) => {
 
     // Delete associated image files
     if (promotion.images && promotion.images.length > 0) {
-      promotion.images.forEach(image => {
+      for (const image of promotion.images) {
         try {
-          const filePath = `uploads/promotions/${image.filename}`;
-          if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
+          if (image.filename && image.filename.includes('/')) {
+            await s3.send(new DeleteObjectCommand({
+              Bucket: s3BucketName,
+              Key: image.filename
+            }));
+          } else {
+            const filePath = `uploads/promotions/${image.filename}`;
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+            }
           }
         } catch (fileError) {
           console.error('Error deleting image file:', fileError);
         }
-      });
+      }
     }
 
     await Promotion.findByIdAndDelete(id);

@@ -57,7 +57,7 @@ const createInfluencer = async (req, res) => {
 
     let profilePhoto = "";
     if (req.file) {
-      profilePhoto = `uploads/profilePhoto/${req.file.filename}`;
+      profilePhoto = req.file.location || `uploads/profilePhoto/${req.file.filename}`;
     }
 
     const socialMediaData = {
@@ -179,7 +179,7 @@ const createBrandOwner = async (req, res) => {
     // Handle brand logo upload
     let brandLogo = "";
     if (req.file) {
-      brandLogo = `uploads/profilePhoto/${req.file.filename}`;
+      brandLogo = req.file.location || `uploads/profilePhoto/${req.file.filename}`;
     }
 
     const profile = await BrandOwnerProfile.create({
@@ -315,7 +315,7 @@ const  updateInfluencerProfile = async (req, res) => {
     // Profile photo update logic
     let profilePhoto = existingProfile.profilePhoto;
     if (req.file) {
-      profilePhoto = `uploads/profilePhoto/${req.file.filename}`;
+      profilePhoto = req.file.location || `uploads/profilePhoto/${req.file.filename}`;
     }
 
     // Update fields
@@ -391,7 +391,7 @@ const updateBrandOwnerProfile = async (req, res) => {
 
     // Handle brand logo update
     if (req.file) {
-      data.brandLogo = `uploads/profilePhoto/${req.file.filename}`;
+      data.brandLogo = req.file.location || `uploads/profilePhoto/${req.file.filename}`;
     }
 
     const updated = await BrandOwnerProfile.findOneAndUpdate(

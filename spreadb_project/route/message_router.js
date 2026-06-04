@@ -14,27 +14,21 @@ import {
 import { protect } from "../middleware/auth_middleware.js";
 import multer from "multer";
 import path from "path";
-import fs from "fs";
+import multerS3 from "multer-s3";
+import { s3, s3BucketName } from "../utils/s3Config.js";
 
 const router = express.Router();
 
 // Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = "uploads/messages";
-    
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
+const storage = multerS3({
+  s3: s3,
+  bucket: s3BucketName,
+  contentType: multerS3.AUTO_CONTENT_TYPE,
+  key: function (req, file, cb) {
     // Generate unique filename
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const extension = path.extname(file.originalname);
-    cb(null, file.fieldname + '-' + uniqueSuffix + extension);
+    cb(null, `messages/${file.fieldname}-${uniqueSuffix}${extension}`);
   }
 });
 

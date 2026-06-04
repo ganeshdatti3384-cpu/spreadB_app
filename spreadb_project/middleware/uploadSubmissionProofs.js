@@ -1,18 +1,15 @@
 import multer from "multer";
 import path from "path";
-import fs from "fs";
+import multerS3 from "multer-s3";
+import { s3, s3BucketName } from "../utils/s3Config.js";
 
-const uploadDir = path.join("uploads", "submissionProofs");
-
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
+const storage = multerS3({
+  s3: s3,
+  bucket: s3BucketName,
+  contentType: multerS3.AUTO_CONTENT_TYPE,
+  key: (req, file, cb) => {
     const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, unique + path.extname(file.originalname));
+    cb(null, `submissionProofs/${unique}${path.extname(file.originalname)}`);
   },
 });
 

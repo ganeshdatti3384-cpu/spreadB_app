@@ -53,8 +53,8 @@ export const submitCampaignWork = async (req, res) => {
     }
 
     const mediaProofs = (req.files || []).map(file => ({
-      url: `uploads/submissionProofs/${file.filename}`,
-      filename: file.filename,
+      url: file.location || `uploads/submissionProofs/${file.filename}`,
+      filename: file.filename || file.key,
       mimetype: file.mimetype,
       size: file.size,
     }));
