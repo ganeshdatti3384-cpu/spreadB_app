@@ -5,6 +5,7 @@ import User from "../model/users.js";
 import{CampaignSubmission} from "../model/campaignsubmission_model.js"
 import { Application } from "../model/promotion_model.js";
 import{Agreement} from "../model/agreement_model.js"
+import Wallet from "../model/wallet_model.js";
 
 export const createPromotion = async (req, res) => {
   try {
@@ -48,21 +49,44 @@ export const createPromotion = async (req, res) => {
       });
     }
 
+    const budgetPerOpening = Number(budget) || 0;
+    if (budgetPerOpening < 499) {
+      return res.status(400).json({
+        message: "Budget must be at least ₹499",
+      });
+    }
+
+    const numOpenings = Number(openings);
+    const totalCost = budgetPerOpening * numOpenings;
+
+    // Verify wallet balance
+    const wallet = await Wallet.findOne({ userId });
+    if (!wallet || wallet.availableBalance < totalCost) {
+      return res.status(400).json({ 
+        message: "Insufficient wallet balance. Please add funds before creating a campaign." 
+      });
+    }
+
     const promotion = await Promotion.create({
       brandOwnerId: userId,
       title,
       description,
       categories: categories || [],
       locations: locations || [],
-      budget: Number(budget) || 0,
+      budget: budgetPerOpening,
       duration,
       applicationDeadline,
       startDate,
       endDate,
       requiredSticks: Number(requiredSticks) || 0,
-      openings: Number(openings),
+      openings: numOpenings,
       filledPositions: 0,
     });
+
+    // Hold the required funds
+    if (totalCost > 0) {
+      await wallet.holdMoney(totalCost, promotion._id, `Campaign creation hold for "${title}"`);
+    }
 
     // Increment promotions count if profile exists
     if (brandOwner) {

@@ -238,6 +238,7 @@ export default function CreatePromotionScreen({ route, navigation }) {
     }
     if (step === 3) {
       if (!form.budget.trim()) { Alert.alert('Required', 'Please enter a budget'); return false; }
+      if (parseFloat(form.budget) < 499) { Alert.alert('Invalid Budget', 'Budget must be at least ₹499'); return false; }
       if (!form.openings.trim()) { Alert.alert('Required', 'Please enter number of openings'); return false; }
     }
     if (step === 4) {
@@ -288,7 +289,22 @@ export default function CreatePromotionScreen({ route, navigation }) {
         || e.response?.data?.error
         || (typeof e.response?.data === 'string' ? e.response.data : null)
         || 'Failed to save campaign. Please try again.';
-      Alert.alert('Error', msg);
+        
+      if (msg.includes('Insufficient wallet balance') || msg.includes('balance') || msg.toLowerCase().includes('funds')) {
+        Alert.alert(
+          'Insufficient Balance', 
+          'You do not have enough funds in your wallet to post this campaign. Would you like to add funds now?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Add Funds', 
+              onPress: () => navigation.navigate('Wallet') 
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', msg);
+      }
     } finally {
       setSubmitting(false);
     }

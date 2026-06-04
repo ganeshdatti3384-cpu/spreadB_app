@@ -7,7 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES } from '../../theme/colors';
 import { useAuth } from '../../context/AuthContext';
 import { getPromotionById, getCampaignApplicants } from '../../api/promotions';
-import { applyForPromotion, getSticksBalance, startConversation } from '../../api/applications';
+import { applyForPromotion, getSticksBalance, startConversation, getAgreements, getMyApplications } from '../../api/applications';
+import { getMySubmissions, getSubmissionsForCampaign } from '../../api/submissions';
 import { deriveSharedKey, encryptMessage } from '../../utils/e2ee';
 
 const TABS = ['Overview', 'Requirements', 'Brand'];
@@ -43,6 +44,9 @@ export default function PromotionDetailScreen({ route, navigation }) {
 
   const [promotion, setPromotion] = useState(null);
   const [applicants, setApplicants] = useState([]);
+  const [submissions, setSubmissions] = useState([]);
+  const [mySubmission, setMySubmission] = useState(null);
+  const [myAgreement, setMyAgreement] = useState(null);
   const [sticksBalance, setSticksBalance] = useState(null);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
@@ -60,13 +64,6 @@ export default function PromotionDetailScreen({ route, navigation }) {
       const promo = promoRes.data?.promotion || promoRes.data;
       setPromotion(promo);
       setBrandOwnerId(promo.brandOwnerId || promo.brandOwner);
-      if (isInfluencer && promo?.applicants) {
-        const myId = String(user?._id || '');
-        const app = promo.applicants.find(a =>
-          String(a.userId || a.user || '') === myId
-        );
-        if (app) { setHasApplied(true); setMyApplication(app); }
-      }
     } catch (e) {
       console.log('Promotion detail load error:', e?.response?.status, e?.message);
     }
@@ -86,6 +83,44 @@ export default function PromotionDetailScreen({ route, navigation }) {
         console.log('Sticks balance error:', e?.response?.status);
         setSticksBalance(0);
       }
+
+      try {
+        const appsRes = await getMyApplications();
+        const app = appsRes.data?.applications?.find(a => 
+          String(a.campaignId?._id || a.campaignId) === String(id) || 
+          String(a.promotion?._id || a.promotion) === String(id)
+        );
+        if (app) {
+          setHasApplied(true);
+          setMyApplication(app);
+        }
+      } catch (e) {
+        console.log('My applications load error:', e?.response?.status);
+      }
+
+      try {
+        const subRes = await getMySubmissions();
+        const sub = subRes.data?.submissions?.find(s => 
+          String(s.campaignId?._id || s.campaignId) === String(id)
+        );
+        if (sub) {
+          setMySubmission(sub);
+        }
+      } catch (e) {
+        console.log('My submissions load error:', e?.response?.status);
+      }
+
+      try {
+        const agrRes = await getAgreements();
+        const agr = agrRes.data?.agreements?.find(a => 
+          String(a.campaignId?._id || a.campaignId) === String(id)
+        );
+        if (agr) {
+          setMyAgreement(agr);
+        }
+      } catch (e) {
+        console.log('My agreements load error:', e?.response?.status);
+      }
     }
     if (isBrand) {
       try {
@@ -93,6 +128,13 @@ export default function PromotionDetailScreen({ route, navigation }) {
         setApplicants(appRes.data?.applicants || []);
       } catch (e) {
         console.log('Applicants load error:', e?.response?.status);
+      }
+
+      try {
+        const subRes = await getSubmissionsForCampaign(id);
+        setSubmissions(subRes.data?.submissions || []);
+      } catch (e) {
+        console.log('Submissions load error:', e?.response?.status);
       }
     }
 
@@ -306,12 +348,12 @@ export default function PromotionDetailScreen({ route, navigation }) {
         {/* Sticks balance (influencer) */}
         {isInfluencer && sticksBalance !== null && (
           <View style={[styles.sticksCard, { borderColor: sticksOk ? COLORS.primary : COLORS.error }]}>
-            <View style={styles.sticksLeft}>
-              <Ionicons name="flash" size={20} color={sticksOk ? COLORS.primary : COLORS.error} />
+            <View style={[styles.sticksBalanceBadge, !sticksOk && { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]}>
+              <Ionicons name="color-wand" size={20} color={sticksOk ? COLORS.primary : COLORS.error} />
               <View style={{ marginLeft: 10 }}>
                 <Text style={styles.sticksTitle}>Your Sticks Balance</Text>
-                <Text style={[styles.sticksValue, { color: sticksOk ? COLORS.primary : COLORS.error }]}>
-                  {sticksBalance} Sticks ⚡
+                <Text style={[styles.sticksBalanceText, !sticksOk && { color: COLORS.error }]}>
+                  {sticksBalance} Sticks 🪄
                 </Text>
               </View>
             </View>
@@ -412,11 +454,11 @@ export default function PromotionDetailScreen({ route, navigation }) {
               </View>
               <View style={styles.reqRow}>
                 <View style={styles.reqIcon}>
-                  <Ionicons name="flash-outline" size={18} color={COLORS.warning} />
+                  <Ionicons name="color-wand-outline" size={18} color={COLORS.warning} />
                 </View>
                 <View style={styles.reqInfo}>
                   <Text style={styles.reqLabel}>Required Sticks</Text>
-                  <Text style={styles.reqValue}>{promotion.requiredSticks || 0} Sticks ⚡ minimum</Text>
+                  <Text style={styles.reqValue}>{promotion.requiredSticks || 0} Sticks 🪄 minimum</Text>
                 </View>
               </View>
               <View style={styles.reqRow}>
@@ -520,7 +562,7 @@ export default function PromotionDetailScreen({ route, navigation }) {
                         <Text style={styles.applicantName}>{fullName}</Text>
                         {app.boostSticks > 0 && (
                           <View style={styles.boostPill}>
-                            <Text style={styles.boostPillText}>⚡ Boosted ({app.boostSticks})</Text>
+                            <Text style={styles.boostPillText}>🪄 Boosted ({app.boostSticks})</Text>
                           </View>
                         )}
                       </View>
@@ -546,6 +588,79 @@ export default function PromotionDetailScreen({ route, navigation }) {
           </View>
         )}
 
+        {/* Submissions list (brand) */}
+        {isBrand && submissions.length > 0 && (
+          <View style={styles.applicantsSection}>
+            <Text style={styles.sectionLabel}>Submissions ({submissions.length})</Text>
+            {submissions.map((sub, i) => {
+              const fullName = sub.influencerId?.firstName && sub.influencerId?.lastName
+                ? `${sub.influencerId.firstName} ${sub.influencerId.lastName}`.trim()
+                : sub.influencerId?.name || 'Influencer';
+              const initials = fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+
+              return (
+                <View key={i} style={styles.applicantRow}>
+                  <TouchableOpacity 
+                    style={styles.applicantLeftSection}
+                    onPress={() => {
+                      navigation.navigate('ReviewSubmissionScreen', { submission: sub });
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.applicantAvatar}>
+                      <Text style={styles.applicantAvatarText}>{initials}</Text>
+                    </View>
+                    <View style={styles.applicantInfo}>
+                      <Text style={styles.applicantName}>{fullName}</Text>
+                      <Text style={styles.subLabel}>Tap to Review Work</Text>
+                    </View>
+                  </TouchableOpacity>
+                  <View style={[styles.appStatusBadge, {
+                    backgroundColor: sub.status === 'approved' ? COLORS.primaryLight : sub.status === 'rejected' ? '#FDECEA' : '#FFF8E1'
+                  }]}>
+                    <Text style={[styles.appStatusText, {
+                      color: sub.status === 'approved' ? COLORS.primary : sub.status === 'rejected' ? COLORS.error : '#F9A825'
+                    }]}>{sub.status}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* My Submission (influencer) */}
+        {isInfluencer && mySubmission && (
+          <View style={styles.applicantsSection}>
+            <Text style={styles.sectionLabel}>My Submission</Text>
+            <View style={styles.applicantRow}>
+              <TouchableOpacity 
+                style={styles.applicantLeftSection}
+                onPress={() => {
+                  navigation.navigate('ReviewSubmissionScreen', { submission: mySubmission, readOnly: true });
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.applicantAvatar, { backgroundColor: COLORS.primaryLight }]}>
+                  <Ionicons name="cloud-done-outline" size={20} color={COLORS.primary} />
+                </View>
+                <View style={styles.applicantInfo}>
+                  <Text style={styles.applicantName}>Submitted Work</Text>
+                  <Text style={styles.subLabel} numberOfLines={1}>
+                    {mySubmission.description || 'Tap to view details'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+              <View style={[styles.appStatusBadge, {
+                backgroundColor: mySubmission.status === 'approved' ? COLORS.primaryLight : mySubmission.status === 'rejected' ? '#FDECEA' : '#FFF8E1'
+              }]}>
+                <Text style={[styles.appStatusText, {
+                  color: mySubmission.status === 'approved' ? COLORS.primary : mySubmission.status === 'rejected' ? COLORS.error : '#F9A825'
+                }]}>{mySubmission.status}</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         <View style={{ height: 100 }} />
       </ScrollView>
 
@@ -567,35 +682,76 @@ export default function PromotionDetailScreen({ route, navigation }) {
               )}
             </TouchableOpacity>
 
-            {/* Apply button */}
-            <TouchableOpacity
-              style={[
-                styles.bottomBtn,
-                styles.bottomBtnFlex,
-                hasApplied && styles.bottomBtnApplied,
-                (!canApply && !hasApplied) && styles.bottomBtnDisabled,
-              ]}
-              onPress={handleApply}
-              disabled={!canApply || applying}
-              activeOpacity={0.85}
-            >
-              {applying ? (
-                <ActivityIndicator size="small" color={COLORS.white} />
-              ) : (
-                <>
-                  <Ionicons
-                    name={hasApplied ? 'checkmark-circle-outline' : 'send-outline'}
-                    size={18}
-                    color={COLORS.white}
-                  />
-                  <Text style={styles.bottomBtnText}>
-                    {hasApplied
-                      ? 'Already Applied'
-                      : `Apply Now (${promotion.requiredSticks || 0} Sticks ⚡)`}
+            {/* Action Buttons */}
+            {!hasApplied && (
+              <TouchableOpacity
+                style={[
+                  styles.bottomBtn,
+                  styles.bottomBtnFlex,
+                  !canApply && styles.bottomBtnDisabled,
+                ]}
+                onPress={handleApply}
+                disabled={!canApply || applying}
+                activeOpacity={0.85}
+              >
+                {applying ? (
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                ) : (
+                  <>
+                    <Ionicons name="send-outline" size={18} color={COLORS.white} />
+                    <Text style={styles.applyBtnText}>
+                    {hasApplied 
+                      ? 'Already Applied' 
+                      : `Apply Now (${promotion.requiredSticks || 0} Sticks 🪄)`}
                   </Text>
-                </>
-              )}
-            </TouchableOpacity>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+
+            {hasApplied && (
+              <TouchableOpacity
+                style={[
+                  styles.bottomBtn,
+                  styles.bottomBtnFlex,
+                  (myApplication?.status !== 'accepted' || !!mySubmission) && styles.bottomBtnApplied,
+                ]}
+                onPress={() => {
+                  if (myApplication?.status === 'accepted' && !mySubmission) {
+                    if (myAgreement && myAgreement.status !== 'signed') {
+                      navigation.navigate('AgreementDetail', { agreement: myAgreement });
+                    } else {
+                      navigation.navigate('SubmitWorkScreen', {
+                        campaignId: promotion._id,
+                        applicationId: myApplication._id,
+                        title: promotion.title
+                      });
+                    }
+                  }
+                }}
+                disabled={myApplication?.status !== 'accepted' || !!mySubmission}
+                activeOpacity={0.85}
+              >
+                <Ionicons
+                  name={
+                    myApplication?.status === 'accepted' && !mySubmission
+                      ? (myAgreement && myAgreement.status !== 'signed' ? 'document-text-outline' : 'cloud-upload-outline')
+                      : 'checkmark-circle-outline'
+                  }
+                  size={18}
+                  color={COLORS.white}
+                />
+                <Text style={styles.bottomBtnText}>
+                  {mySubmission 
+                    ? `Work Submitted (${mySubmission.status})` 
+                    : myApplication?.status === 'completed'
+                    ? 'Work Approved'
+                    : myApplication?.status === 'accepted'
+                    ? (myAgreement && myAgreement.status !== 'signed' ? 'Sign Agreement' : 'Submit Work')
+                    : 'Already Applied'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
         {isBrand && (
@@ -632,25 +788,25 @@ export default function PromotionDetailScreen({ route, navigation }) {
 
             <ScrollView contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false}>
               <Text style={styles.modalDesc}>
-                Applying to "{promotion?.title}" will spend Sticks ⚡ from your balance.
+                Applying to "{promotion?.title}" will spend Sticks 🪄 from your balance.
               </Text>
 
               <View style={styles.modalInfoCard}>
                 <View style={styles.modalInfoRow}>
-                  <Text style={styles.modalInfoLabel}>Required Sticks</Text>
-                  <Text style={styles.modalInfoVal}>{promotion?.requiredSticks || 0} Sticks ⚡</Text>
+                  <Text style={styles.modalInfoLabel}>Campaign Cost</Text>
+                  <Text style={styles.modalInfoVal}>{promotion?.requiredSticks || 0} Sticks 🪄</Text>
                 </View>
                 <View style={styles.modalInfoRow}>
                   <Text style={styles.modalInfoLabel}>Your Balance</Text>
-                  <Text style={[styles.modalInfoVal, { color: sticksOk ? COLORS.primary : COLORS.error }]}>
-                    {sticksBalance} Sticks ⚡
+                  <Text style={[styles.modalInfoVal, !sticksOk && { color: COLORS.error }]}>
+                    {sticksBalance} Sticks 🪄
                   </Text>
                 </View>
               </View>
 
               <Text style={styles.boostTitle}>🚀 Boost Your Application (Optional)</Text>
-              <Text style={styles.boostSub}>
-                Spend additional Sticks ⚡ to push your application to the top of the brand owner's list. Higher boost appears first.
+              <Text style={styles.modalDesc}>
+                Spend additional Sticks 🪄 to push your application to the top of the brand owner's list. Higher boost appears first.
               </Text>
 
               {/* Quick Select Buttons */}
@@ -692,23 +848,20 @@ export default function PromotionDetailScreen({ route, navigation }) {
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.inputContainer}>
+              <View style={styles.inputWrap}>
                 <TextInput
                   style={styles.boostInput}
                   keyboardType="numeric"
                   value={boostSticksInput}
-                  onChangeText={(val) => {
-                    const clean = val.replace(/[^0-9]/g, '');
-                    setBoostSticksInput(clean);
-                  }}
+                  onChangeText={setBoostSticksInput}
                   placeholder="0"
                 />
-                <Text style={styles.inputSuffix}>Sticks ⚡</Text>
+                <Text style={styles.inputSuffix}>Sticks 🪄</Text>
               </View>
 
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryText}>
-                  Total Cost: <Text style={{ fontWeight: 'bold' }}>{(promotion?.requiredSticks || 0) + (parseInt(boostSticksInput) || 0)} Sticks ⚡</Text>
+              <View style={styles.totalCostRow}>
+                <Text style={styles.totalCostText}>
+                  Total Cost: <Text style={{ fontWeight: 'bold' }}>{(promotion?.requiredSticks || 0) + (parseInt(boostSticksInput) || 0)} Sticks 🪄</Text>
                 </Text>
               </View>
             </ScrollView>

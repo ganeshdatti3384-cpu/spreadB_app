@@ -78,8 +78,8 @@ function InfluencerCard({ item, onPress }) {
           <Text style={styles.statValue}>₹{item.budget?.toLocaleString()}</Text>
         </View>
         <View style={styles.statItem}>
-          <Ionicons name="flash-outline" size={13} color={COLORS.textSecondary} />
-          <Text style={styles.statValueMuted}>{item.requiredSticks || 0} Sticks ⚡</Text>
+          <Ionicons name="color-wand-outline" size={13} color={COLORS.textSecondary} />
+          <Text style={styles.statValueMuted}>{item.requiredSticks || 0} Sticks 🪄</Text>
         </View>
         <View style={styles.statItem}>
           <Ionicons name="time-outline" size={13} color={COLORS.textSecondary} />

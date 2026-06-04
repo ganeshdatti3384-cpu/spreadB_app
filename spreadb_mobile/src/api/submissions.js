@@ -8,4 +8,4 @@ export const submitProof = (formData) =>
 export const getMySubmissions = () => api.get('/api/submissions/my');
 export const getSubmissionsForCampaign = (campaignId) =>
   api.get(`/api/submissions/campaign/${campaignId}`);
-export const reviewSubmission = (data) => api.patch('/api/submissions/review', data);
+export const reviewSubmission = (data) => api.post('/api/submissions/review', data);

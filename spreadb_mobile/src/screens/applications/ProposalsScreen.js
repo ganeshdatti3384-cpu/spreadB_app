@@ -190,7 +190,7 @@ export default function ProposalsScreen({ navigation }) {
               <Text style={styles.influencerName}>{influencerName}</Text>
               {item.boostSticks > 0 && (
                 <View style={styles.boostPill}>
-                  <Text style={styles.boostPillText}>⚡ Boosted ({item.boostSticks})</Text>
+                  <Text style={styles.boostPillText}>🪄 Boosted ({item.boostSticks})</Text>
                 </View>
               )}
             </View>
@@ -263,7 +263,7 @@ export default function ProposalsScreen({ navigation }) {
             }}
             activeOpacity={0.8}
           >
-            <Text style={styles.viewDetailsBtnText}>View Details</Text>
+            <Text style={styles.viewDetailsBtnText}>View Campaign & Work</Text>
           </TouchableOpacity>
         )}
       </View>

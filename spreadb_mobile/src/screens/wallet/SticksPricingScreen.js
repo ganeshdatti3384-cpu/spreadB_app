@@ -68,7 +68,7 @@ export default function SticksPricingScreen({ navigation }) {
           </View>
           
           <View style={styles.heroSection}>
-            <Ionicons name="flash-sharp" size={40} color={COLORS.primary} />
+            <Ionicons name="color-wand-outline" size={40} color={COLORS.primary} />
             <Text style={styles.heroTitle}>Refill Your Sticks</Text>
             <Text style={styles.heroSubtitle}>
               Sticks allow you to apply for high-value promotions, connect with top brand owners, and increase your profile visibility.
@@ -101,7 +101,7 @@ export default function SticksPricingScreen({ navigation }) {
                 <View style={styles.planCardHeader}>
                   <View style={styles.planSticksWrap}>
                     <Ionicons 
-                      name="flash" 
+                      name="color-wand" 
                       size={20} 
                       color={plan.popular ? COLORS.primary : COLORS.primary} 
                     />

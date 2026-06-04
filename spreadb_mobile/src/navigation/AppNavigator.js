@@ -30,6 +30,8 @@ import HomeScreen from '../screens/home/HomeScreen';
 import PromotionsScreen from '../screens/promotions/PromotionsScreen';
 import PromotionDetailScreen from '../screens/promotions/PromotionDetailScreen';
 import CreatePromotionScreen from '../screens/promotions/CreatePromotionScreen';
+import SubmitWorkScreen from '../screens/promotions/SubmitWorkScreen';
+import ReviewSubmissionScreen from '../screens/promotions/ReviewSubmissionScreen';
 import MessagesScreen from '../screens/messages/MessagesScreen';
 import ChatScreen from '../screens/messages/ChatScreen';
 import NotificationsScreen from '../screens/notifications/NotificationsScreen';
@@ -112,6 +114,8 @@ function AppStack() {
       <Stack.Screen name="MainApp" component={MainTabs} />
       <Stack.Screen name="PromotionDetail" component={PromotionDetailScreen} />
       <Stack.Screen name="CreatePromotion" component={CreatePromotionScreen} />
+      <Stack.Screen name="SubmitWorkScreen" component={SubmitWorkScreen} />
+      <Stack.Screen name="ReviewSubmissionScreen" component={ReviewSubmissionScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="MyApplications" component={MyApplicationsScreen} />

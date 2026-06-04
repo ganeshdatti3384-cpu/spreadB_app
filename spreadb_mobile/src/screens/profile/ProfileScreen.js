@@ -242,7 +242,7 @@ export default function ProfileScreen({ route = {}, navigation }) {
                   onPress={() => navigation.navigate('Wallet')} 
                 />
                 <StatCard 
-                  icon="flash" 
+                  icon="color-wand-outline" 
                   color={COLORS.warning} 
                   value={sticks} 
                   label="Sticks" 

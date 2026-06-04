@@ -129,7 +129,7 @@ function TxItem({ tx, index, onPress }) {
         <Text style={styles.txDate}>{formatDate(tx.createdAt || tx.date)}</Text>
       </View>
       <Text style={[styles.txAmount, { color: isCredit ? COLORS.primary : COLORS.text }]}>
-        {cfg.sign}{tx.isSticks ? '' : '₹'}{tx.amount?.toLocaleString?.() ?? tx.amount}{tx.isSticks ? ' Sticks ⚡' : ''}
+        {cfg.sign}{tx.isSticks ? '' : '₹'}{tx.amount?.toLocaleString?.() ?? tx.amount}{tx.isSticks ? ' Sticks 🪄' : ''}
       </Text>
     </TouchableOpacity>
   );
@@ -161,7 +161,7 @@ function TxDetailModal({ visible, tx, onClose }) {
                 <Ionicons name={cfg.icon} size={28} color={cfg.color} />
               </View>
               <Text style={[styles.detailAmountVal, { color: isCredit ? COLORS.primary : COLORS.text }]}>
-                {cfg.sign}{tx.isSticks ? '' : '₹'}{tx.amount?.toLocaleString?.() ?? tx.amount}{tx.isSticks ? ' Sticks ⚡' : ''}
+                {cfg.sign}{tx.isSticks ? '' : '₹'}{tx.amount?.toLocaleString?.() ?? tx.amount}{tx.isSticks ? ' Sticks 🪄' : ''}
               </Text>
             </View>
 
@@ -226,11 +226,11 @@ function TxDetailModal({ visible, tx, onClose }) {
                 <>
                   <View style={styles.detailFieldRow}>
                     <Text style={styles.detailFieldLabel}>Free Sticks Spent</Text>
-                    <Text style={styles.detailFieldVal}>{tx.freeSticksSpent || 0} Sticks ⚡</Text>
+                    <Text style={styles.detailFieldVal}>{tx.freeSticksSpent || 0} Sticks 🪄</Text>
                   </View>
                   <View style={styles.detailFieldRow}>
                     <Text style={styles.detailFieldLabel}>Purchased Sticks Spent</Text>
-                    <Text style={styles.detailFieldVal}>{tx.purchasedSticksSpent || 0} Sticks ⚡</Text>
+                    <Text style={styles.detailFieldVal}>{tx.purchasedSticksSpent || 0} Sticks 🪄</Text>
                   </View>
                 </>
               )}
@@ -363,7 +363,7 @@ export default function WalletScreen({ navigation }) {
                 {/* Sticks */}
                 <View style={styles.balanceCard}>
                   <View style={styles.balanceCardRow}>
-                    <Ionicons name="flash-outline" size={14} color="rgba(255,255,255,0.6)" />
+                    <Ionicons name="color-wand-outline" size={14} color="rgba(255,255,255,0.6)" />
                     <Text style={styles.balanceCardLabel}>Sticks</Text>
                   </View>
                   <Text style={styles.balanceCardValue}>{sticksTotal}</Text>

@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES } from '../../theme/colors';
 import { getMyApplications, startConversation } from '../../api/applications';
+import { getMySubmissions } from '../../api/submissions';
 import { useAuth } from '../../context/AuthContext';
 import { deriveSharedKey, encryptMessage } from '../../utils/e2ee';
 
@@ -28,7 +29,7 @@ function StatusBadge({ status }) {
   );
 }
 
-function ApplicationCard({ item, onPress, onChat, onAgreement }) {
+function ApplicationCard({ item, mySubmission, onPress, onChat, onAgreement, onSubmitWork, onViewSubmission }) {
   const appliedDate = item.appliedAt
     ? new Date(item.appliedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
     : null;
@@ -90,31 +91,73 @@ function ApplicationCard({ item, onPress, onChat, onAgreement }) {
             </View>
           </View>
           
-          <View style={styles.cardActions}>
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={(e) => {
-                e.stopPropagation();
-                onAgreement();
-              }}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="document-text-outline" size={14} color={COLORS.primary} />
-              <Text style={styles.actionBtnText}>Agreement</Text>
-            </TouchableOpacity>
-            
-            {/* Chat button - only available for accepted applications */}
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnChat]}
-              onPress={(e) => {
-                e.stopPropagation();
-                onChat(item);
-              }}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="chatbubble-outline" size={14} color={COLORS.primary} />
-              <Text style={styles.actionBtnText}>Chat with Brand</Text>
-            </TouchableOpacity>
+          <View style={styles.cardActionsContainer}>
+            <View style={styles.cardActionsRow}>
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onAgreement();
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="document-text-outline" size={14} color={COLORS.primary} />
+                <Text style={styles.actionBtnText}>Agreement</Text>
+              </TouchableOpacity>
+              
+              {/* Chat button */}
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionBtnChat]}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onChat(item);
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="chatbubble-outline" size={14} color={COLORS.primary} />
+                <Text style={styles.actionBtnText}>Chat</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Submit Work or View/Update Submission */}
+            {!mySubmission ? (
+              <TouchableOpacity
+                style={styles.submitWorkBtn}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onSubmitWork();
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="cloud-upload-outline" size={16} color={COLORS.white} />
+                <Text style={styles.submitWorkBtnText}>Submit Work</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ gap: 8 }}>
+                <TouchableOpacity
+                  style={[styles.submitWorkBtn, { backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.primary }]}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    onViewSubmission();
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="eye-outline" size={16} color={COLORS.primary} />
+                  <Text style={[styles.submitWorkBtnText, { color: COLORS.primary }]}>View Submitted Work</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.submitWorkBtn}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    onSubmitWork();
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="cloud-upload-outline" size={16} color={COLORS.white} />
+                  <Text style={styles.submitWorkBtnText}>Update Details</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </>
       )}
@@ -125,6 +168,7 @@ function ApplicationCard({ item, onPress, onChat, onAgreement }) {
 export default function MyApplicationsScreen({ navigation }) {
   const { user } = useAuth();
   const [applications, setApplications] = useState([]);
+  const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('All');
@@ -132,8 +176,12 @@ export default function MyApplicationsScreen({ navigation }) {
 
   const load = useCallback(async () => {
     try {
-      const res = await getMyApplications();
-      setApplications(res.data?.applications || []);
+      const [appsRes, subsRes] = await Promise.all([
+        getMyApplications(),
+        getMySubmissions().catch(() => ({ data: { submissions: [] } }))
+      ]);
+      setApplications(appsRes.data?.applications || []);
+      setSubmissions(subsRes.data?.submissions || []);
     } catch (e) {
       console.log('Applications load error:', e);
     } finally {
@@ -271,17 +319,38 @@ export default function MyApplicationsScreen({ navigation }) {
         <FlatList
           data={filtered}
           keyExtractor={(item) => item._id}
-          renderItem={({ item }) => (
-            <ApplicationCard
-              item={item}
-              onPress={() => {
-                const promoId = item.promotion?._id || item.promotion || item.campaignId;
-                if (promoId) navigation.navigate('PromotionDetail', { id: promoId });
-              }}
-              onChat={handleStartChat}
-              onAgreement={() => navigation.navigate('Agreements')}
-            />
-          )}
+          renderItem={({ item }) => {
+            const promoId = item.promotion?._id || item.promotion || item.campaignId;
+            const mySubmission = submissions.find(s => 
+              String(s.campaignId?._id || s.campaignId) === String(promoId)
+            );
+            return (
+              <ApplicationCard
+                item={item}
+                mySubmission={mySubmission}
+                onPress={() => {
+                  if (promoId) navigation.navigate('PromotionDetail', { id: promoId });
+                }}
+                onChat={handleStartChat}
+                onAgreement={() => navigation.navigate('Agreements')}
+                onSubmitWork={() => {
+                  if (promoId) {
+                    navigation.navigate('SubmitWorkScreen', {
+                      campaignId: promoId,
+                      applicationId: item._id,
+                      title: item.promotion?.title || 'Campaign',
+                      existingSubmission: mySubmission
+                    });
+                  }
+                }}
+                onViewSubmission={() => {
+                  if (mySubmission) {
+                    navigation.navigate('ReviewSubmissionScreen', { submission: mySubmission, readOnly: true });
+                  }
+                }}
+              />
+            );
+          }}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -375,15 +444,28 @@ const styles = StyleSheet.create({
   metaBudget: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
   metaGray: { fontSize: 12, color: COLORS.textSecondary },
 
-  cardActions: {
-    flexDirection: 'row', gap: 8, marginTop: 12,
-    paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.borderLight,
+  cardActionsContainer: {
+    marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.borderLight, gap: 10
+  },
+  cardActionsRow: {
+    flexDirection: 'row', gap: 8,
   },
   actionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     backgroundColor: COLORS.primaryLight, borderRadius: SIZES.radius,
     paddingVertical: 10, borderWidth: 1, borderColor: COLORS.primary,
   },
+  actionBtnChat: {
+    flex: 1.2,
+  },
+  actionBtnText: { fontSize: 12, color: COLORS.primary, fontWeight: '600' },
+
+  submitWorkBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: COLORS.primary, borderRadius: SIZES.radius,
+    paddingVertical: 12,
+  },
+  submitWorkBtnText: { fontSize: 14, color: COLORS.white, fontWeight: '700' },
   actionBtnChat: {
     flex: 1.2,
   },
